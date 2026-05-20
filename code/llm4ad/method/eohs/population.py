@@ -327,8 +327,9 @@ class Population:
         # Extract just the pairs in sorted order
         ranked_pairs = [pair for _, pair in sorted_distance_pairs]
 
-        # Create probability distribution based on ranks (higher rank = higher probability)
-        ranks = [len(ranked_pairs) - i for i in range(len(ranked_pairs))]  # [k, k-1, ..., 1]
+        # Assign rank 1 to the most complementary (largest-distance) pair;
+        # sampling probability is inverse to rank, so larger-distance pairs are favored.
+        ranks = [i + 1 for i in range(len(ranked_pairs))]  # [1, 2, ..., num_pairs]
         p = np.array([1 / r for r in ranks])  # Inverse of rank
         p = p / np.sum(p)  # Normalize to probabilities
 
