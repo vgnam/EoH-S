@@ -27,6 +27,12 @@ class Population:
         self._clusters = []
         self._k = top_k
 
+    @staticmethod
+    def _avg_score(score):
+        if isinstance(score, (list, tuple, np.ndarray)):
+            return float(np.mean(score))
+        return float(score)
+
     def __len__(self):
         return len(self._population)
 
@@ -68,9 +74,6 @@ class Population:
     def survival_set(self):
         pop = self._population + self._next_gen_pop
 
-        # Print initial population size
-        print(f"Initial combined population size: {len(pop)}")
-
         pop = [
             f for f in pop
             if f.score is not None  # Exclude None
@@ -80,20 +83,12 @@ class Population:
                )
         ]
 
-        # Print filtered population size
-        print(f"Population after filtering None/inf scores: {len(pop)}")
-
         # Extract scores for each individual (assuming score is a list)
         score_lists = [ind.score for ind in pop]
 
         # Step 1: Sort by average score (descending) to get initial ordering
         avg_scores = [sum(scores) / len(scores) for scores in score_lists]
         sorted_indices = sorted(range(len(pop)), key=lambda i: -avg_scores[i])
-
-        # Print top 5 average scores
-        print("\nTop 5 individuals by average score:")
-        for i in sorted_indices[:5]:
-            print(f"Index {i}: Avg score {avg_scores[i]:.4f}, Scores: {pop[i].score}")
 
         survivors = []
         selected_indices = []
@@ -109,7 +104,6 @@ class Population:
         first_idx = sorted_indices[0]
         survivors.append(pop[first_idx])
         selected_indices.append(first_idx)
-        print(f"\nSelected first survivor (best average): Index {first_idx}, Scores: {pop[first_idx].score}")
 
         # Step 3: Select remaining individuals one by one
         remaining_indices = [i for i in sorted_indices if i != first_idx]
@@ -121,9 +115,6 @@ class Population:
             # Current combined scores (max of all selected individuals)
             current_combined = [max(survivor.score[i] for survivor in survivors)
                                 for i in range(len(survivors[0].score))]
-
-            print(f"\nCurrent combined scores: {current_combined}")
-            print(f"Looking for next survivor among {len(remaining_indices)} candidates...")
 
             for candidate_idx in remaining_indices:
                 candidate = pop[candidate_idx]
@@ -143,24 +134,19 @@ class Population:
                 survivors.append(pop[best_idx])
                 selected_indices.append(best_idx)
                 remaining_indices.remove(best_idx)
-                print(
-                    f"Selected survivor: Index {best_idx}, Improvement: {best_improvement:.4f}, Scores: {pop[best_idx].score}")
             else:
                 # No improvement found, just add the next best average
                 next_best = remaining_indices.pop(0)
                 survivors.append(pop[next_best])
-                print(
-                    f"No improvement found, selecting next best average: Index {next_best}, Scores: {pop[next_best].score}")
-
-        # Print final selected survivors
-        print("\nFinal selected survivors:")
-        for i, survivor in enumerate(survivors):
-            print(f"Survivor {i + 1}: Scores: {survivor.score}, Avg: {sum(survivor.score) / len(survivor.score):.4f}")
 
         self._population = survivors[:self._pop_size]
         self._next_gen_pop = []
         self._generation += 1
-        print(f"\nGeneration {self._generation} survival completed. Population size: {len(self._population)}")
+        best_avg = self._avg_score(self._population[0].score) if self._population else float("-inf")
+        print(
+            f"Generation {self._generation} survival completed. "
+            f"Population size: {len(self._population)}, best avg score: {best_avg:.4f}"
+        )
 
     def register_function(self, func: Function):
         # in population initialization, we only accept valid functions
@@ -202,7 +188,6 @@ class Population:
                 # register to next_gen
             self._next_gen_pop.append(func)
             # update: perform survival if reach the pop size
-            print(f"next pop size = {len(self._next_gen_pop)} / {self._pop_size}")
             if len(self._next_gen_pop) >= self._pop_size:
                 self.survival_set()
         except Exception as e:

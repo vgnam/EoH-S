@@ -109,7 +109,7 @@ class TSPSEvaluation(Evaluation):
         dis = []
         n_ins = 0
 
-        for instance, distance_matrix, baseline in self._datasets:
+        for instance, distance_matrix, _baseline in self._datasets:
 
             problem_size = len(instance)
 
@@ -150,9 +150,7 @@ class TSPSEvaluation(Evaluation):
 
             LLM_dis = self.tour_cost(instance, route, problem_size)
 
-            gap = (LLM_dis-baseline)/baseline
-
-            dis.append(-gap)
+            dis.append(-LLM_dis)
 
             n_ins += 1
             if n_ins == self.n_instance:

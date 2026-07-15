@@ -89,7 +89,8 @@ class ProfilerBase:
 
     def record_parameters(self, llm, prob, method):
         self._parameters = [llm, prob, method]
-        self._create_log_path()
+        if self._log_dir:
+            self._create_log_path()
 
     def register_function(self, function: Function, *, resume_mode=False):
         """Record an obtained function.

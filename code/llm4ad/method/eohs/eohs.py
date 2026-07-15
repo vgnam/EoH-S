@@ -59,6 +59,7 @@ class EoHS:
                  num_evaluators: int = 1,
                  *,
                  resume_mode: bool = False,
+                 initial_population: Optional[list[Function]] = None,
                  debug_mode: bool = False,
                  multi_thread_or_process_eval: Literal['thread', 'process'] = 'thread',
                  **kwargs):
@@ -77,6 +78,8 @@ class EoHS:
             use_m1_operator: if use local search operator.
             use_complementary_management: if use complementary population management.
             resume_mode     : in resume_mode, randsample will not evaluate the template_program, and will skip the init process. TODO: More detailed usage.
+            initial_population: previously evaluated functions used as the starting population. When provided,
+                                EoHS skips random initialization and evolves directly from these functions.
             debug_mode      : if set to True, we will print detailed information.
             multi_thread_or_process_eval: use 'concurrent.futures.ThreadPoolExecutor' or 'concurrent.futures.ProcessPoolExecutor' for the usage of
                 multi-core CPU while evaluation. Please note that both settings can leverage multi-core CPU. As a result on my personal computer (Mac OS, Intel chip),
@@ -100,7 +103,10 @@ class EoHS:
         # samplers and evaluators
         self._num_samplers = num_samplers
         self._num_evaluators = num_evaluators
-        self._resume_mode = resume_mode
+        seeded_population = list(initial_population or [])
+        if seeded_population and use_c_operator and len(seeded_population) < 2:
+            raise ValueError("initial_population needs at least two functions when use_c_operator=True.")
+        self._resume_mode = resume_mode or bool(seeded_population)
         self._debug_mode = debug_mode
         llm.debug_mode = debug_mode
         self._multi_thread_or_process_eval = multi_thread_or_process_eval
@@ -114,7 +120,11 @@ class EoHS:
         self._adjust_pop_size()
 
         # population, sampler, and evaluator
-        self._population = Population(pop_size=self._pop_size,top_k=self._top_k)
+        self._population = Population(
+            pop_size=self._pop_size,
+            top_k=self._top_k,
+            pop=seeded_population[:self._pop_size],
+        )
         self._sampler = EoHSSampler(llm, self._template_program_str)
         self._evaluator = SecureEvaluator(evaluation, debug_mode=debug_mode, **kwargs)
         self._profiler = profiler
@@ -205,7 +215,7 @@ class EoHS:
                 # print("EoHSProfiler")
                 self._profiler.register_population(self._population)
                 #self._profiler.register_cluster(self._population._clusters)
-            self._tot_sample_nums += 1
+        self._tot_sample_nums += 1
 
         # register to the population
 

@@ -52,6 +52,8 @@ class EoHSProfiler(ProfilerBase):
         # print("============")
         # print(self.__class__._num_samples)
         # print(pop.generation)
+        if not self._log_dir:
+            return
         try:
             self._pop_lock.acquire()
             if (self.__class__._num_samples == 0 or

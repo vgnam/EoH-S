@@ -25,11 +25,9 @@ from typing import Optional
 from ...base import Function
 from .profile import ProfilerBase
 
-try:
-    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable TF onednn for better performance
-    from torch.utils.tensorboard import SummaryWriter
-except:
-    pass
+# TensorBoard pulls in TensorFlow/protobuf on import in some environments and
+# can spam tracebacks even when the TensorBoard profiler is not used.
+SummaryWriter = None
 
 
 class TensorboardProfiler(ProfilerBase):
@@ -62,6 +60,12 @@ class TensorboardProfiler(ProfilerBase):
 
         # summary writer instance for Tensorboard
         if log_dir:
+            if SummaryWriter is None:
+                raise RuntimeError(
+                    "TensorBoard profiler is disabled in this environment. "
+                    "Use the simple profiler or re-enable SummaryWriter in "
+                    "llm4ad/tools/profiler/tensorboard_profiler.py."
+                )
             self._writer = SummaryWriter(log_dir=self._log_dir)
 
 

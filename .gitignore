@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+
+# Runtime experiment outputs
+logs/
+logs_test/
+results/
+examples/training/tsp_set/logs/
+examples/training/tsp_set/logs_test/
+results/open_world_tsp_surprise/

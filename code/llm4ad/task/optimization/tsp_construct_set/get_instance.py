@@ -1,6 +1,5 @@
 import numpy as np
 import pickle as pkl
-import elkai
 
 class GetData():
     def __init__(self, n_instance, n_cities):
@@ -10,6 +9,14 @@ class GetData():
 
 
     def lkh(self,distance_matrix):
+        try:
+            import elkai
+        except ImportError as exc:
+            raise ImportError(
+                "elkai is required only when generating new TSP datasets. "
+                "Install it with `py -3 -m pip install elkai`, or use the "
+                "prebuilt pickle datasets."
+            ) from exc
 
         result_matrix = (distance_matrix * 100).tolist()
         cities = elkai.DistanceMatrix(result_matrix)

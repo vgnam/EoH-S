@@ -1,0 +1,36 @@
+llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: https://api.vectorengine.ai/v1
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v3
+  timeout: 60
+
+task:
+  timeout_seconds: 120
+  datasets:
+    - ./dataset_tsp_3_0.03_32_training.pkl
+    - ./dataset_tsp_3_0.07_32_training.pkl
+    - ./dataset_tsp_10_0.03_32_training.pkl
+    - ./dataset_tsp_10_0.07_32_training.pkl
+  return_list: true
+
+hidden_test:
+  dataset: datasets/tsp/dataset_tsp_open_world_hidden_mixed_structures128.pkl
+  seed: 12026
+  city_sizes: [50, 100, 200]
+  instances_per_size: 128
+  function_timeout_seconds: 30
+  speed_probe_timeout_seconds: 3
+
+profiler:
+  log_dir: logs/eohs
+  log_style: simple
+
+method:
+  max_sample_nums: 500
+  max_generations: 1000
+  pop_size: 10
+  num_samplers: 4
+  num_evaluators: 4
+  debug_mode: false

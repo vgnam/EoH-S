@@ -1,0 +1,54 @@
+llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: https://api.vectorengine.ai/v1
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v3
+  timeout: 60
+
+logger:
+  root: logs/ow_cahd
+
+stream:
+  seed: 2026
+  rounds: 6
+  batch_size: 64
+  n_cities: 40
+
+hidden_test:
+  dataset: datasets/tsp/dataset_tsp_open_world_hidden_mixed_structures128.pkl
+  seed: 12026
+  city_sizes: [50, 100, 200]
+  instances_per_size: 128
+  function_timeout_seconds: 30
+  speed_probe_timeout_seconds: 3
+
+method:
+  
+  portfolio_size: 10
+  sleep_instances_per_round: 128
+  min_sleep_per_regime: 8
+  novelty_alpha: 0.01
+  novelty_confirm_rounds: 2
+  skip_mmd_verification: true
+  auto_accept_regime: false
+  always_synthesize_regime: true
+  allow_bootstrap_fallback: false
+  llm_synthesis_mixture_components: 10
+  llm_synthesis_min_successful_components: 1
+  llm_synthesis_temperatures: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]
+  fit_samples_per_regime: 64
+  covariance_reg: 0.0001
+  belief_floor: 0.02
+  max_sample_nums: 500
+  max_generations: 8
+  pop_size: 10
+  num_samplers: 1
+  num_evaluators: 1
+  debug_mode: false
+  print_eohs_samples: true
+  synthesis_context: >
+    This is a constructive TSP task. Generate only coordinates in [0, 1].
+    Each generated instance should be a numpy array or nested list with
+    shape (n_cities, 2). The OW-CAHD runner will centrally recompute the
+    Euclidean distance matrix and deterministic nearest-neighbor baseline.
