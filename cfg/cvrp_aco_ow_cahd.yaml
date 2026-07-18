@@ -1,0 +1,76 @@
+llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: https://api.vectorengine.ai/v1
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v3
+  timeout: 60
+
+logger:
+  root: logs/cvrp_aco/ow_cahd
+
+stream:
+  # Use exactly one training dataset per experimental run.
+  datasets:
+    - datasets/cvrp/dataset_cvrp_train_fixed30_uniform_32.pkl
+  seed: 2026
+  batch_size: 32
+  shuffle: true
+
+aco_train:
+  n_ants: 8
+  iterations: 20
+  alpha: 1.0
+  beta: 2.0
+  rho: 0.1
+  n_runs: 1
+  seed: 2026
+  timeout_seconds: 600
+
+hidden_test:
+  function_workers: 4
+  datasets:
+    - datasets/cvrp/dataset_cvrp_hidden_id_size20.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_id_size50.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_id_size100.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size20.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size50.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size100.pkl
+  aco:
+    n_ants: 20
+    iterations: 100
+    alpha: 1.0
+    beta: 2.0
+    rho: 0.1
+    n_runs: 1
+    seed: 22026
+    timeout_seconds: 3600
+
+method:
+  portfolio_size: 10
+  sleep_instances_per_round: 32
+  min_sleep_per_regime: 8
+  novelty_alpha: 0.01
+  novelty_confirm_rounds: 2
+  skip_mmd_verification: true
+  always_synthesize_regime: true
+  allow_bootstrap_fallback: false
+  llm_synthesis_examples: 4
+  llm_synthesis_mixture_components: 3
+  llm_synthesis_min_successful_components: 1
+  llm_synthesis_temperatures: [0.3, 0.7, 1.0]
+  fit_samples_per_regime: 32
+  covariance_reg: 0.0001
+  belief_floor: 0.02
+  max_sample_nums: 500
+  max_generations: 8
+  pop_size: 10
+  num_samplers: 1
+  num_evaluators: 1
+  debug_mode: false
+  print_eohs_samples: true
+  synthesis_context: >
+    This is a CVRP ACO pheromone-update task. Generate coordinate arrays in
+    [0, 1], with depot at row 0 and customers after it. The runner centrally
+    generates deterministic demands/capacity and reference costs; do not
+    generate ACO parameters or pheromone matrices.

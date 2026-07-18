@@ -133,8 +133,20 @@ class SampleTrimmer:
                 find_def_declaration = True
                 break
         if find_def_declaration:
+            # A generated function declaration may span several physical
+            # lines. Remove the complete declaration, not only its first line,
+            # before transplanting the sampled body into the template.
+            parentheses = 0
+            declaration_end = func_body_lineno
+            for lineno in range(func_body_lineno, len(lines)):
+                declaration_line = lines[lineno]
+                parentheses += declaration_line.count('(')
+                parentheses -= declaration_line.count(')')
+                declaration_end = lineno
+                if parentheses <= 0 and declaration_line.rstrip().endswith(':'):
+                    break
             code = ''
-            for line in lines[func_body_lineno + 1:]:
+            for line in lines[declaration_end + 1:]:
                 code += line + '\n'
             return code
         return generated_code

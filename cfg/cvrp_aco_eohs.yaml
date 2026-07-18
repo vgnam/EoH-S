@@ -1,0 +1,53 @@
+llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: https://api.vectorengine.ai/v1
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v3
+  timeout: 60
+
+task:
+  # One fixed training distribution, matching the TSP-ACO protocol.
+  datasets:
+    - datasets/cvrp/dataset_cvrp_train_fixed30_uniform_32.pkl
+  max_instances: 32
+  aco:
+    n_ants: 8
+    iterations: 20
+    alpha: 1.0
+    beta: 2.0
+    rho: 0.1
+    n_runs: 1
+    seed: 2026
+    timeout_seconds: 600
+
+hidden_test:
+  function_workers: 4
+  datasets:
+    - datasets/cvrp/dataset_cvrp_hidden_id_size20.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_id_size50.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_id_size100.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size20.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size50.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size100.pkl
+  aco:
+    n_ants: 20
+    iterations: 100
+    alpha: 1.0
+    beta: 2.0
+    rho: 0.1
+    n_runs: 1
+    seed: 22026
+    timeout_seconds: 3600
+
+profiler:
+  log_dir: logs/cvrp_aco/eohs
+  log_style: simple
+
+method:
+  max_sample_nums: 500
+  max_generations: 1000
+  pop_size: 10
+  num_samplers: 4
+  num_evaluators: 4
+  debug_mode: false

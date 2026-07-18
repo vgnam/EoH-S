@@ -187,6 +187,10 @@ class EoHS:
         3. Add the function to the population and register it to the profiler.
         """
 
+        # Count every LLM attempt against the sample budget, including API
+        # failures and responses that cannot be parsed into a function. Without
+        # this, initialization can loop forever on repeatedly invalid output.
+        self._tot_sample_nums += 1
         sample_start = time.time()
         thought, func = self._sampler.get_thought_and_function(prompt)
         sample_time = time.time() - sample_start
@@ -215,8 +219,6 @@ class EoHS:
                 # print("EoHSProfiler")
                 self._profiler.register_population(self._population)
                 #self._profiler.register_cluster(self._population._clusters)
-        self._tot_sample_nums += 1
-
         # register to the population
 
         #print(f"total samples: {self._tot_sample_nums}, threshold: {self._stage1_ratio * self._max_sample_nums}, generation: {self._population._generation}")

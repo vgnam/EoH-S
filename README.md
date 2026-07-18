@@ -290,6 +290,35 @@ generation and task-specific protocol details live in
 
 ---
 
+## ACO baselines
+
+Classical Ant Colony Optimisation baselines are available for TSP, CVRP, and
+offline BPP. They use the repository's train/ID/OOD datasets and export both
+JSON summaries and per-run CSV records. See
+[`examples/baselines/aco`](examples/baselines/aco/README.md) for the algorithms,
+fair-comparison caveat for online bin packing, and commands.
+
+EoH-S and OW-CAHD can also search the pheromone update rule inside fixed TSP
+and capacity-feasible CVRP ACO backbones. Unlike the classical baseline, these
+four search runs call an LLM and require `OPENAI_API_KEY`:
+
+```powershell
+py -3 examples\training\tsp_aco_set\run_eohs.py
+py -3 examples\training\tsp_aco_set\run_ow_cahd.py
+py -3 examples\training\cvrp_aco_set\run_eohs.py
+py -3 examples\training\cvrp_aco_set\run_ow_cahd.py
+```
+
+Their matched configs use one uniform size-30 train set and automatically
+post-evaluate on ID/OOD sizes 20, 50, and 100. Method details are in the
+[`TSP-ACO`](examples/training/tsp_aco_set/README.md) and
+[`CVRP-ACO`](examples/training/cvrp_aco_set/README.md) experiment notes.
+
+```powershell
+py -3 examples\baselines\aco\run_aco.py --problem all --split id `
+  --max-instances 2 --runs 1 --ants 4 --iterations 5
+```
+
 ## 📁 Repository Structure
 
 - **`code/`**: Source code for EoH-S and baseline methods, implemented using the LLM4AD platform
