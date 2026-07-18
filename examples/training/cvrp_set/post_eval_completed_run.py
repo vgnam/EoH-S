@@ -59,7 +59,7 @@ def main():
     parser.add_argument("log_dir", type=Path)
     parser.add_argument("hidden_dataset", type=Path)
     parser.add_argument("--function-timeout-seconds", type=float, default=60.0)
-    parser.add_argument("--speed-probe-timeout-seconds", type=float, default=3.0)
+    parser.add_argument("--speed-probe-timeout-seconds", type=float, default=0.0)
     parser.add_argument("--output-prefix", default="post_eval_hidden_utility")
     args = parser.parse_args()
 

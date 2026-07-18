@@ -28,6 +28,25 @@ def hidden_dataset_paths(hidden_test_cfg):
     return [resolve_repo_path(path) for path in paths]
 
 
+def save_final_population(log_dir, population):
+    rows = []
+    for function in population:
+        score = function.score
+        if hasattr(score, "tolist"):
+            score = score.tolist()
+        rows.append(
+            {
+                "name": function.name,
+                "algorithm": getattr(function, "algorithm", ""),
+                "score": score,
+                "function": str(function),
+            }
+        )
+    output_path = Path(log_dir) / "post_eval_open_world_functions.json"
+    output_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    return output_path
+
+
 def main():
     cfg = load_config()
     llm_cfg = cfg["llm"]
@@ -59,6 +78,8 @@ def main():
     (log_dir / "run_config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     (log_dir / "token_usage.json").write_text(json.dumps(token_usage, indent=2), encoding="utf-8")
     final_population = method._population.population
+    final_population_path = save_final_population(log_dir, final_population)
+    print(f"Final EOHS population saved to {final_population_path}")
     for hidden_dataset_path in hidden_dataset_paths(hidden_test_cfg):
         try:
             hidden_dataset = load_hidden_cvrp_dataset(hidden_dataset_path)

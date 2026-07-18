@@ -27,7 +27,7 @@ hidden_test:
   customer_sizes: [20, 50, 100]
   instances_per_size: 128
   function_timeout_seconds: 60
-  speed_probe_timeout_seconds: 3
+  speed_probe_timeout_seconds: 0
 
 profiler:
   log_dir: examples/training/cvrp_set/logs/eohs
