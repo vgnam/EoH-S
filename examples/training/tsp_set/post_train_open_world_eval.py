@@ -8,11 +8,19 @@ import math
 import multiprocessing as mp
 import pickle
 import random
+import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]
+LOCAL_PYTHON_PACKAGES = REPO_ROOT / ".python_packages"
+if LOCAL_PYTHON_PACKAGES.exists():
+    sys.path.insert(0, str(LOCAL_PYTHON_PACKAGES))
 
 
 DEFAULT_STREAM_CONFIG = {"seed": 2026, "rounds": 6, "batch_size": 8, "n_cities": 40}
@@ -43,9 +51,37 @@ def nearest_neighbor_reference(distance_matrix):
     return tour_cost(distance_matrix, route)
 
 
-def make_tsp_instance(coords):
+def lkh_reference(distance_matrix):
+    try:
+        import elkai
+    except Exception:
+        return nearest_neighbor_reference(distance_matrix)
+    scale = 1_000_000.0
+    integer_matrix = np.rint(np.asarray(distance_matrix, dtype=float) * scale).astype(int)
+    integer_matrix = np.maximum(integer_matrix, 0)
+    np.fill_diagonal(integer_matrix, 0)
+    try:
+        route = list(elkai.DistanceMatrix(integer_matrix.tolist()).solve_tsp(runs=10))
+    except Exception:
+        return nearest_neighbor_reference(distance_matrix)
+    if len(route) > 1 and route[0] == route[-1]:
+        route = route[:-1]
+    if len(route) != len(distance_matrix):
+        return nearest_neighbor_reference(distance_matrix)
+    return tour_cost(distance_matrix, route)
+
+
+def gap_score(length, baseline):
+    baseline = float(baseline)
+    if baseline <= 0 or not math.isfinite(baseline):
+        return None
+    return (baseline - float(length)) / baseline
+
+
+def make_tsp_instance(coords, baseline=None):
     distance_matrix = pairwise_distances(coords)
-    baseline = nearest_neighbor_reference(distance_matrix)
+    if baseline is None:
+        baseline = lkh_reference(distance_matrix)
     return coords, distance_matrix, baseline
 
 
@@ -147,12 +183,11 @@ def score_callable_on_instance(heuristic, instance):
     mask = ~np.isin(np.arange(n), route[: n - 1])
     route[n - 1] = np.arange(n)[mask][0]
     length = tour_cost(distance_matrix, route.tolist())
-    return -length
+    return gap_score(length, baseline)
 
 
 def baseline_score_on_instance(instance):
-    _coords, _distance_matrix, baseline = instance
-    return -float(baseline)
+    return 0.0
 
 
 def _function_key(function) -> str:
@@ -515,7 +550,13 @@ def _evaluate_hidden_round(task):
         for name, source in portfolio_specs
     ]
     coordinates = hidden_round["coordinates"]
-    instances = [make_tsp_instance(np.asarray(coords, dtype=float)) for coords in coordinates]
+    baselines = hidden_round.get("baselines")
+    if baselines is None:
+        baselines = [None] * len(coordinates)
+    instances = [
+        make_tsp_instance(np.asarray(coords, dtype=float), baseline=baseline)
+        for coords, baseline in zip(coordinates, baselines)
+    ]
     instance_sizes = np.asarray([len(instance[0]) for instance in instances], dtype=int)
     largest_size = int(np.max(instance_sizes))
     probe_indices = np.flatnonzero(instance_sizes == largest_size)[:1]
@@ -652,7 +693,7 @@ def evaluate_hidden_portfolio_utility(
             }
         )
 
-    train_regimes = {"uniform", "cluster", "bezier"}
+    train_regimes = {"uniform", "cluster", "bezier", "grid_holes", "mixed_id"}
     known_mask = np.asarray([regime in train_regimes for regime in all_regimes_array], dtype=bool)
     surprise_mask = ~known_mask
     known_utility = (
@@ -666,8 +707,8 @@ def evaluate_hidden_portfolio_utility(
         else None
     )
     summary = {
-        "metric": "hidden-test best-of-portfolio raw objective",
-        "utility_formula": "mean_x max_h -tour_length_x(h)",
+        "metric": "hidden-test best-of-portfolio normalized baseline gap",
+        "utility_formula": "mean_x max_h (baseline_x - tour_length_x(h)) / baseline_x",
         "rounds": len(per_round),
         "hidden_instances": len(all_scores),
         "city_sizes": city_sizes,
@@ -697,64 +738,71 @@ def save_hidden_utility_post_eval(
     round_workers: int = 1,
     function_timeout_seconds: float | None = None,
     speed_probe_timeout_seconds: float | None = None,
+    output_prefix: str = "post_eval_hidden_utility",
 ):
     log_dir = Path(log_dir)
     hidden_dataset_path = Path(hidden_dataset_path)
     dataset = load_hidden_tsp_dataset(hidden_dataset_path)
-    per_round, per_round_size, per_size, summary = evaluate_hidden_portfolio_utility(
+    _, per_round_size, _, _ = evaluate_hidden_portfolio_utility(
         portfolios_by_round,
         dataset,
         round_workers=round_workers,
         function_timeout_seconds=function_timeout_seconds,
         speed_probe_timeout_seconds=speed_probe_timeout_seconds,
     )
-    summary = {
-        "method": method_name,
-        "portfolio_protocol": portfolio_protocol,
-        "hidden_dataset_path": str(hidden_dataset_path.resolve()),
-        **summary,
-    }
+    train_regimes = {"uniform", "cluster", "bezier", "grid_holes", "mixed_id"}
+    rows = []
+    for size in sorted({int(row["n_cities"]) for row in per_round_size}):
+        output_row = {"n_cities": size}
+        for label, is_id in (("id", True), ("ood", False)):
+            selected = [
+                row for row in per_round_size
+                if int(row["n_cities"]) == size
+                and ((row["regime"] in train_regimes) == is_id)
+            ]
+            count = sum(int(row["hidden_instances"]) for row in selected)
+            output_row[f"{label}_utility_mean"] = (
+                sum(
+                    float(row["hidden_utility_mean"]) * int(row["hidden_instances"])
+                    for row in selected
+                ) / count
+                if count else None
+            )
+        rows.append(output_row)
 
-    paths = {
-        "per_round": log_dir / "post_eval_hidden_utility_per_round.csv",
-        "per_round_size": log_dir / "post_eval_hidden_utility_per_round_size.csv",
-        "per_size": log_dir / "post_eval_hidden_utility_per_size.csv",
-        "summary": log_dir / "post_eval_hidden_utility_summary.json",
-    }
-
-    def write_rows(path, rows):
-        csv_rows = []
-        for row in rows:
-            csv_row = dict(row)
-            if isinstance(csv_row.get("city_sizes"), list):
-                csv_row["city_sizes"] = json.dumps(csv_row["city_sizes"])
-            csv_rows.append(csv_row)
-        with path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(csv_rows[0].keys()))
-            writer.writeheader()
-            writer.writerows(csv_rows)
-
-    write_rows(paths["per_round"], per_round)
-    write_rows(paths["per_round_size"], per_round_size)
-    write_rows(paths["per_size"], per_size)
-    paths["summary"].write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    return per_round, per_round_size, per_size, summary, paths
-
-
-def print_hidden_utility_post_eval(method_name, per_round, summary, paths):
-    print(f"\nPost-train hidden portfolio raw objective: {method_name}")
-    for row in per_round:
-        print(
-            f"round={row['round_id']} regime={row['regime']} "
-            f"hidden={row['hidden_instances']} utility={row['hidden_utility_mean']:.6f} "
-            f"baseline_improve={row['baseline_improvement_rate']:.3f}"
+    output_path = log_dir / f"{output_prefix}.csv"
+    merged = {int(row["n_cities"]): row for row in rows}
+    if output_path.exists():
+        with output_path.open(newline="", encoding="utf-8") as handle:
+            for old_row in csv.DictReader(handle):
+                size = int(old_row["n_cities"])
+                target = merged.setdefault(
+                    size,
+                    {"n_cities": size, "id_utility_mean": None, "ood_utility_mean": None},
+                )
+                for field in ("id_utility_mean", "ood_utility_mean"):
+                    if target.get(field) is None and old_row.get(field):
+                        target[field] = float(old_row[field])
+    rows = [merged[size] for size in sorted(merged)]
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["n_cities", "id_utility_mean", "ood_utility_mean"],
         )
-    print(
-        f"overall hidden_utility={summary['hidden_utility_mean']:.6f} "
-        f"worst_round={summary['worst_round_utility']:.6f} "
-        f"baseline_improve={summary['baseline_improvement_rate']:.3f}"
-    )
-    print(f"hidden utility summary saved to {paths['summary']}")
+        writer.writeheader()
+        writer.writerows(rows)
+    return rows, output_path
+
+
+def print_hidden_utility_post_eval(method_name, rows, output_path):
+    print(f"\nPost-train hidden utility by size: {method_name}")
+    for row in rows:
+        id_mean = row["id_utility_mean"]
+        ood_mean = row["ood_utility_mean"]
+        id_text = f"{id_mean:.6f}" if id_mean is not None else "n/a"
+        ood_text = f"{ood_mean:.6f}" if ood_mean is not None else "n/a"
+        print(f"n={row['n_cities']} id={id_text} ood={ood_text}")
+    print(f"hidden utility saved to {output_path}")
 
 
 def evaluate_function_set(functions, stream_config=None):

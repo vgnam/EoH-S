@@ -1,0 +1,40 @@
+llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: https://api.vectorengine.ai/v1
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v3
+  timeout: 60
+
+task:
+  timeout_seconds: 120
+  default_train_size: 500
+  datasets_by_size:
+    200: datasets/obp/dataset_obp_train_size200.pkl
+    500: datasets/obp/dataset_obp_train_size500.pkl
+    1000: datasets/obp/dataset_obp_train_size1000.pkl
+  return_list: true
+
+hidden_test:
+  id_datasets:
+    - datasets/obp/dataset_obp_hidden_id_size200.pkl
+    - datasets/obp/dataset_obp_hidden_id_size500.pkl
+    - datasets/obp/dataset_obp_hidden_id_size1000.pkl
+  ood_datasets:
+    - datasets/obp/dataset_obp_hidden_ood_size200.pkl
+    - datasets/obp/dataset_obp_hidden_ood_size500.pkl
+    - datasets/obp/dataset_obp_hidden_ood_size1000.pkl
+  item_sizes: [200, 500, 1000]
+  instances_per_size: 128
+
+profiler:
+  log_dir: examples/training/obp_set/logs/eohs
+  log_style: simple
+
+method:
+  max_sample_nums: 500
+  max_generations: 1000
+  pop_size: 10
+  num_samplers: 4
+  num_evaluators: 4
+  debug_mode: false

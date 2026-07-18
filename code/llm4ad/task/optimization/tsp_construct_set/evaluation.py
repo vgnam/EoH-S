@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import pickle
 from typing import Any
+import math
 import numpy as np
 from llm4ad.base import Evaluation
 from llm4ad.task.optimization.tsp_construct_set.get_instance import GetData
@@ -72,11 +73,17 @@ class TSPSEvaluation(Evaluation):
         # getData = GetData(self.n_instance, problem_size)
         # self._datasets = getData.generate_instances()
         self._datasets = []
-        for dataset in datasets:
-            dataset = pickle.load(open(dataset, 'rb'))
-            self._datasets.extend(dataset)
-            print(f"load dataset from {dataset}")
+        for dataset_path in datasets:
+            with open(dataset_path, 'rb') as handle:
+                dataset = pickle.load(handle)
+            if isinstance(dataset, dict) and "instances" in dataset:
+                instances = dataset["instances"]
+            else:
+                instances = dataset
+            self._datasets.extend(instances)
+            print(f"load dataset from {dataset_path}")
 
+        self.n_instance = len(self._datasets)
         print(f"{len(self._datasets)} instances loaded")
         # dataset = pickle.load(open('./dataset_tsp_200_256.pkl', 'rb'))
 
@@ -103,13 +110,20 @@ class TSPSEvaluation(Evaluation):
 
         return neighborhood_matrix
 
+    @staticmethod
+    def gap_score(length, baseline):
+        baseline = float(baseline)
+        if baseline <= 0 or not math.isfinite(baseline):
+            return None
+        return (baseline - float(length)) / baseline
+
     def evaluate(self, eva: callable) -> float:
 
 
         dis = []
         n_ins = 0
 
-        for instance, distance_matrix, _baseline in self._datasets:
+        for instance, distance_matrix, baseline in self._datasets:
 
             problem_size = len(instance)
 
@@ -150,7 +164,10 @@ class TSPSEvaluation(Evaluation):
 
             LLM_dis = self.tour_cost(instance, route, problem_size)
 
-            dis.append(-LLM_dis)
+            score = self.gap_score(LLM_dis, baseline)
+            if score is None:
+                return None
+            dis.append(score)
 
             n_ins += 1
             if n_ins == self.n_instance:

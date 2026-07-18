@@ -7,34 +7,33 @@ llm:
   timeout: 60
 
 logger:
-  root: logs/ow_cahd
+  root: examples/training/cvrp_set/logs/ow_cahd
 
 stream:
   datasets:
-    - datasets/tsp/dataset_tsp_train_fixed30_uniform_32.pkl
-    - datasets/tsp/dataset_tsp_train_fixed30_cluster_32.pkl
-    - datasets/tsp/dataset_tsp_train_fixed30_bezier_32.pkl
-    - datasets/tsp/dataset_tsp_train_fixed30_grid_holes_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_fixed30_uniform_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_fixed30_cluster_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_fixed30_bezier_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_fixed30_grid_holes_32.pkl
   seed: 2026
   batch_size: 32
   shuffle: true
 
 hidden_test:
   datasets:
-    - datasets/tsp/dataset_tsp_hidden_id_size20.pkl
-    - datasets/tsp/dataset_tsp_hidden_id_size50.pkl
-    - datasets/tsp/dataset_tsp_hidden_id_size100.pkl
-    - datasets/tsp/dataset_tsp_hidden_ood_size20.pkl
-    - datasets/tsp/dataset_tsp_hidden_ood_size50.pkl
-    - datasets/tsp/dataset_tsp_hidden_ood_size100.pkl
-  seed: 12026
-  city_sizes: [20, 50, 100]
+    - datasets/cvrp/dataset_cvrp_hidden_id_size20.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_id_size50.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_id_size100.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size20.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size50.pkl
+    - datasets/cvrp/dataset_cvrp_hidden_ood_size100.pkl
+  seed: 22026
+  customer_sizes: [20, 50, 100]
   instances_per_size: 128
   function_timeout_seconds: 60
-  speed_probe_timeout_seconds: 0
+  speed_probe_timeout_seconds: 3
 
 method:
-  
   portfolio_size: 10
   sleep_instances_per_round: 128
   min_sleep_per_regime: 8
@@ -59,7 +58,7 @@ method:
   debug_mode: false
   print_eohs_samples: true
   synthesis_context: >
-    This is a constructive TSP task. Generate only coordinates in [0, 1].
-    Each generated instance should be a numpy array or nested list with
-    shape (n_cities, 2). The OW-CAHD runner will centrally recompute the
-    Euclidean distance matrix and LKH/elkai reference baseline.
+    This is a constructive CVRP task. Each generated coordinate array includes
+    the depot as row 0 and customers as the remaining rows, all in [0, 1].
+    The CVRP runner deterministically generates customer demands and capacity,
+    then centrally recomputes distances and the Clarke-Wright reference baseline.

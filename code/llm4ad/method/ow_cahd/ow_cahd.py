@@ -61,6 +61,9 @@ class OWCAHD:
         self._novel_streak = 0
         self._novel_buffer: list[Instance] = []
         self.portfolio: list[Function] = []
+        # Keep the complete final EoHS population so evolution can continue
+        # across rounds.  The portfolio is only the smaller deployment subset.
+        self.population: list[Function] = []
         self.history: list[OWCAHDRoundResult] = []
         self._eohs_sample_budget_used = 0
         self._last_eohs_sample_budget = 0
@@ -108,9 +111,9 @@ class OWCAHD:
         self._bayes_filter(phi)
         sleep_instances, sleep_weights = self._build_sleep_set(round_id)
         evaluation = self.evaluation_factory(sleep_instances)
-        rescored_portfolio = self._score_existing_portfolio(evaluation)
+        rescored_population = self._score_functions(self.population, evaluation)
         valid_seed_functions = [
-            func for func in rescored_portfolio
+            func for func in rescored_population
             if (
                 (vector := score_vector(func, len(sleep_instances))) is not None
                 and np.all(np.isfinite(vector))
@@ -122,6 +125,15 @@ class OWCAHD:
             round_id,
             initial_population=initial_population,
         )
+        # A fully failed inner run must not erase the inherited population.
+        # Keep the last population so a transient LLM/evaluation failure in
+        # one round does not reset continual evolution in subsequent rounds.
+        if candidates:
+            self.population = [copy.deepcopy(func) for func in candidates]
+
+        # Preserve any previously deployed function that was not part of the
+        # EoHS population (mainly relevant for older/restored controller state).
+        rescored_portfolio = self._score_functions(self.portfolio, evaluation)
         candidate_programs = {str(func) for func in candidates}
         candidates.extend(
             func for func in rescored_portfolio
@@ -469,13 +481,13 @@ class OWCAHD:
         remaining_rounds = max(1, int(total_rounds) - int(round_id))
         return int(math.ceil(remaining_budget / remaining_rounds))
 
-    def _score_existing_portfolio(self, evaluation: Evaluation) -> list[Function]:
-        if not self.portfolio:
+    def _score_functions(self, functions: list[Function], evaluation: Evaluation) -> list[Function]:
+        if not functions:
             return []
         secure_evaluator = SecureEvaluator(evaluation, debug_mode=self.config.debug_mode)
         scored: list[Function] = []
         template = evaluation.template_program
-        for func in self.portfolio:
+        for func in functions:
             program = TextFunctionProgramConverter.function_to_program(func, template)
             if program is None:
                 continue
@@ -483,6 +495,10 @@ class OWCAHD:
             copied.score = secure_evaluator.evaluate_program(program)
             scored.append(copied)
         return scored
+
+    def _score_existing_portfolio(self, evaluation: Evaluation) -> list[Function]:
+        """Backward-compatible wrapper for callers of the old helper."""
+        return self._score_functions(self.portfolio, evaluation)
 
 
 # Backward-compatible access for tests or users that imported these helpers

@@ -40,6 +40,7 @@ import copy
 from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 
 from llm4ad.base import Evaluation
 from llm4ad.task.optimization.cvrp_construct_set.get_instance import GetData
@@ -60,8 +61,16 @@ class CVRPSEvaluation(Evaluation):
             timeout_seconds=timeout_seconds
         )
 
-        #getData = GetData(self.n_instance, self.problem_size, self.capacity)
-        self._datasets = pickle.load(open(datasets,'rb'))
+        # getData = GetData(self.n_instance, self.problem_size, self.capacity)
+        dataset_paths = [] if datasets is None else (
+            list(datasets) if isinstance(datasets, (list, tuple)) else [datasets]
+        )
+        self._datasets = []
+        for dataset_path in dataset_paths:
+            with Path(dataset_path).open("rb") as handle:
+                dataset = pickle.load(handle)
+            instances = dataset.get("instances", []) if isinstance(dataset, dict) else dataset
+            self._datasets.extend(instances)
         self.n_instance = len(self._datasets)
         self.problem_size = 0
         self.return_list = return_list
@@ -156,12 +165,20 @@ class CVRPSEvaluation(Evaluation):
                                   vehicle_capacity - current_load,
                                   copy.deepcopy(demands),  # copy
                                   copy.deepcopy(distance_matrix))  # copy
+            try:
+                next_node = int(next_node)
+            except Exception:
+                return None
             if next_node == 0:
+                if current_node == 0:
+                    return None
                 # Update route and load
                 route.append(next_node)
                 current_load = 0
                 current_node = 0
             else:
+                if next_node not in set(feasible_unvisited_nodes.tolist()):
+                    return None
                 # Update route and load
                 route.append(next_node)
                 current_load += demands[next_node]
@@ -191,7 +208,11 @@ class CVRPSEvaluation(Evaluation):
         for instance, distance_matrix, demands, vehicle_capacity, baseline in self._datasets:
             self.problem_size = len(demands)
             route = self.route_construct(distance_matrix, demands, vehicle_capacity, heuristic)
+            if route is None:
+                return None
             LLM_dis = self.tour_cost(instance, route)
+            if baseline <= 0 or not np.isfinite(baseline) or not np.isfinite(LLM_dis):
+                return None
             dis.append(-(LLM_dis-baseline)/baseline)
             n_ins += 1
             if n_ins == self.n_instance:

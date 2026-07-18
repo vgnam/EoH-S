@@ -12,6 +12,7 @@ Official implementation of [**"EoH-S: Evolution of Heuristic Set using LLMs for 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [OW-CAHD Extension](#ow-cahd-extension)
 - [Repository Structure](#repository-structure)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -35,6 +36,58 @@ Official implementation of [**"EoH-S: Evolution of Heuristic Set using LLMs for 
 ### Method Overview
 
 ![Figure 1: Overview of the EoH-S framework and Comparison to Existing LLM-driven AHD methods](https://github.com/FeiLiu36/EoH-S/raw/main/figures/framework.png)
+
+---
+
+## OW-CAHD Extension
+
+**OW-CAHD (Open-World Continual Automated Heuristic Design)** extends EoH-S
+from a fixed training distribution to a stream of potentially changing problem
+regimes. EoH-S remains the inner heuristic-set optimizer, while OW-CAHD adds a
+wake-sleep controller around it:
+
+1. **Wake:** receive a batch of observed instances and summarize it with a
+   task-specific descriptor.
+2. **Regime modeling:** compare the batch with known regimes and, when
+   configured, ask the LLM to synthesize executable instance generators for a
+   new mixture regime.
+3. **Belief update and sleep replay:** update the probability of each known
+   regime, then sample a belief-weighted replay set from their generators.
+4. **Continual EoH-S evolution:** rescore and warm-start from the previous full
+   EoH-S population, evolve on the replay set, and preserve the population
+   across rounds.
+5. **Portfolio deployment:** greedily select a small complementary portfolio
+   from the candidate heuristics and evaluate it on held-out ID/OOD datasets.
+
+The repository includes reproducible open-world pipelines for constructive TSP
+and CVRP. Both use separate training families and hidden ID/OOD datasets at
+sizes 20, 50, and 100. The total EoH-S sampling budget is shared across
+OW-CAHD rounds, making comparisons with the fixed-distribution EoH-S baseline
+explicit.
+
+### Run OW-CAHD
+
+Set `OPENAI_API_KEY`; optionally override `OPENAI_BASE_URL` and `OPENAI_MODEL`.
+Run commands from the repository root:
+
+```bash
+# TSP
+python examples/training/tsp_set/run_ow_cahd.py
+
+# CVRP
+python examples/training/cvrp_set/run_ow_cahd.py
+```
+
+The main configurations are:
+
+- `cfg/ow_cahd.yaml`: TSP OW-CAHD and hidden evaluation.
+- `cfg/cvrp_ow_cahd.yaml`: CVRP OW-CAHD and hidden evaluation.
+- `cfg/eohs.yaml` and `cfg/cvrp_eohs.yaml`: matched EoH-S baselines.
+
+Each OW-CAHD run records round history, regime generators, candidate pools,
+deployed portfolios, token usage, and post-training hidden utility. Dataset
+generation and task-specific protocol details live in
+`examples/training/tsp_set/` and `examples/training/cvrp_set/`.
 
 ---
 

@@ -34,6 +34,7 @@
 
 from __future__ import annotations
 import sys
+from pathlib import Path
 
 sys.path.append('../../')
 from typing import Any
@@ -51,14 +52,16 @@ class OBPSEvaluation(Evaluation):
     """Evaluator for online bin packing problem."""
 
     def __init__(self, timeout_seconds=30,
-                 n_instances=32,
-                 dataset='_',
+                 n_instances=None,
+                 dataset=None,
+                 datasets=None,
                  return_list = False,
                  **kwargs):
         """
         Args:
-            - 'data_file' (str): The data file to load (default is 'weibull_5k_train.pkl').
-            - 'data_key' (str): The key of the data to load (default is 'data_key').
+            - dataset: One pickle dataset path (legacy API).
+            - datasets: One or more pickle dataset paths to merge.
+            - n_instances: Optional cap on the number of loaded instances to evaluate.
 
         Raises:
             AttributeError: If the data key does not exist.
@@ -73,10 +76,34 @@ class OBPSEvaluation(Evaluation):
         )
 
         self.return_list = return_list
-        self.n_instances = n_instances
+        dataset_paths = datasets if datasets is not None else dataset
+        if dataset_paths is None:
+            raise ValueError("Either dataset or datasets must be provided.")
+        if isinstance(dataset_paths, (str, Path)):
+            dataset_paths = [dataset_paths]
 
-        self._datasets = pkl.load(open(dataset, 'rb'))
-        #print(self._datasets['instance_0'])
+        self._datasets = {}
+        for dataset_path in dataset_paths:
+            with Path(dataset_path).open('rb') as handle:
+                loaded = pkl.load(handle)
+            if isinstance(loaded, dict) and "instances" in loaded:
+                loaded = loaded["instances"]
+            if not isinstance(loaded, dict):
+                loaded = {f"instance_{index}": instance for index, instance in enumerate(loaded)}
+            for name, instance in loaded.items():
+                unique_name = str(name)
+                suffix = 1
+                while unique_name in self._datasets:
+                    unique_name = f"{name}_{suffix}"
+                    suffix += 1
+                self._datasets[unique_name] = instance
+
+        loaded_count = len(self._datasets)
+        if loaded_count == 0:
+            raise ValueError("The OBP dataset contains no instances.")
+        if n_instances is not None and int(n_instances) < 1:
+            raise ValueError("n_instances must be at least 1.")
+        self.n_instances = loaded_count if n_instances is None else min(int(n_instances), loaded_count)
 
     def evaluate_program(self, program_str: str, callable_func: callable) -> Any | None:
         return self.evaluate(callable_func)
@@ -212,13 +239,13 @@ class OBPSEvaluation(Evaluation):
 
             # If remaining capacity in a bin is equal to initial capacity, then it is
             # unused. Count number of used bins.
-            lb = int(np.sum(items)/capacity+0.5)
+            lb = max(1, int(np.ceil(np.sum(items) / capacity)))
 
             num_bins.append(float(-((bins_packed != capacity).sum()-lb)/lb))
 
             n = n + 1
 
-            if n > self.n_instances:
+            if n >= self.n_instances:
                 break
 
         if self.return_list:

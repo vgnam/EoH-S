@@ -80,8 +80,15 @@ def synthesize_regime_with_llm(
         last_error = ""
         component_succeeded = False
         for attempt in range(config.llm_synthesis_retries):
-            prompt = build_synthesis_prompt(
+            prompt_instances = _sample_prompt_instances(
                 instances,
+                config.llm_synthesis_examples,
+                round_id=round_id,
+                component_id=component_id,
+                attempt=attempt,
+            )
+            prompt = build_synthesis_prompt(
+                prompt_instances,
                 descriptor,
                 config,
                 round_id,
@@ -181,6 +188,26 @@ def synthesize_regime_with_llm(
     return regime
 
 
+def _sample_prompt_instances(
+    instances: list[Instance],
+    count: int,
+    *,
+    round_id: int,
+    component_id: int,
+    attempt: int,
+) -> list[Instance]:
+    """Draw fresh observed examples for every LLM synthesis call."""
+    if not instances or count <= 0:
+        return []
+    sample_size = min(int(count), len(instances))
+    seed = _bounded_generator_seed(
+        round_id * 100_003 + component_id * 1_009 + attempt * 97 + 31
+    )
+    rng = np.random.default_rng(seed)
+    indices = rng.choice(len(instances), size=sample_size, replace=False)
+    return [instances[int(index)] for index in indices]
+
+
 def _build_mixture_generator(
     component_generators: list[Callable[[int, int], list[Instance]]],
 ) -> Callable[[int, int], list[Instance]]:
@@ -251,22 +278,21 @@ def build_synthesis_prompt(
     temperature: float = 1.0,
 ) -> str:
     examples = []
-    for idx, instance in enumerate(instances[: config.llm_synthesis_examples]):
+    for idx, instance in enumerate(instances):
         instance_descriptor = np.asarray(descriptor(instance), dtype=float).ravel().tolist()
-        coords = np.asarray(
-            instance[0]
-            if isinstance(instance, (tuple, list)) and len(instance) == 3
-            else instance,
-            dtype=float,
-        )
+        coords_source = instance
+        if isinstance(instance, (tuple, list)) and len(instance) in (3, 5):
+            candidate = np.asarray(instance[0])
+            if candidate.ndim == 2 and candidate.shape[1] == 2:
+                coords_source = instance[0]
+        coords = np.asarray(coords_source, dtype=float)
         n_cities = int(len(coords))
-        preview_count = min(12, n_cities)
-        coords_preview = np.asarray(coords[:preview_count], dtype=float).round(6).tolist()
+        coords_observed = np.asarray(coords, dtype=float).round(6).tolist()
         examples.append(
             f"Example {idx}\n"
             f"descriptor = {instance_descriptor}\n"
             f"n_cities = {n_cities}\n"
-            f"coords_preview = {coords_preview}\n"
+            f"coords = {coords_observed}\n"
         )
 
     error_block = ""

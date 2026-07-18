@@ -2,32 +2,91 @@ from __future__ import annotations
 
 import argparse
 import pickle
+import sys
 from pathlib import Path
 
 import numpy as np
 
 
-DEFAULT_SCHEDULE = [
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]
+LOCAL_PYTHON_PACKAGES = REPO_ROOT / ".python_packages"
+if LOCAL_PYTHON_PACKAGES.exists():
+    sys.path.insert(0, str(LOCAL_PYTHON_PACKAGES))
+
+
+TRAIN_FAMILIES = [
     "uniform",
     "cluster",
     "bezier",
-    "rings",
-    "spiral",
     "grid_holes",
-    "stripes",
-    "moons",
-    "mixed_structures",
-    "star",
-    "nested_boxes",
-    "corner_blobs",
-    "snake",
-    "cross",
 ]
-MIXED_REGIME = "mixed_ood"
+
+OOD_FAMILIES = [
+    "mixed_structures",
+]
+MIXED_STRUCTURE_MEAN = np.array([0.35, 0.25, 0.25, 0.15], dtype=float)
+MIXED_STRUCTURE_CONCENTRATION = 10.0
+DEFAULT_SCHEDULE = TRAIN_FAMILIES + OOD_FAMILIES
+MIXED_ID_REGIME = "mixed_id"
+MIXED_OOD_REGIME = "mixed_ood"
 
 
 def _clip(coords):
     return np.clip(np.asarray(coords, dtype=float), 0.0, 1.0)
+
+
+def pairwise_distances(coords):
+    coords = np.asarray(coords, dtype=float)
+    return np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=2)
+
+
+def tour_cost(distance_matrix, route):
+    total = 0.0
+    for idx in range(len(route) - 1):
+        total += distance_matrix[route[idx], route[idx + 1]]
+    total += distance_matrix[route[-1], route[0]]
+    return float(total)
+
+
+def nearest_neighbor_reference(distance_matrix):
+    n = len(distance_matrix)
+    route = [0]
+    unvisited = set(range(1, n))
+    current = 0
+    while unvisited:
+        nxt = min(unvisited, key=lambda node: distance_matrix[current, node])
+        route.append(nxt)
+        unvisited.remove(nxt)
+        current = nxt
+    return tour_cost(distance_matrix, route)
+
+
+def lkh_reference(distance_matrix):
+    try:
+        import elkai
+    except Exception:
+        return nearest_neighbor_reference(distance_matrix)
+    scale = 1_000_000.0
+    integer_matrix = np.rint(np.asarray(distance_matrix, dtype=float) * scale).astype(int)
+    integer_matrix = np.maximum(integer_matrix, 0)
+    np.fill_diagonal(integer_matrix, 0)
+    try:
+        route = list(elkai.DistanceMatrix(integer_matrix.tolist()).solve_tsp(runs=10))
+    except Exception:
+        return nearest_neighbor_reference(distance_matrix)
+    if len(route) > 1 and route[0] == route[-1]:
+        route = route[:-1]
+    if len(route) != len(distance_matrix):
+        return nearest_neighbor_reference(distance_matrix)
+    return tour_cost(distance_matrix, route)
+
+
+def make_tsp_instance(coords):
+    coords = _clip(coords)
+    distance_matrix = pairwise_distances(coords)
+    baseline = lkh_reference(distance_matrix)
+    return coords, distance_matrix, baseline
 
 
 def sample_uniform(rng, n_cities):
@@ -149,7 +208,8 @@ def sample_moons(rng, n_cities):
 
 
 def sample_mixed_structures(rng, n_cities):
-    counts = rng.multinomial(n_cities, [0.35, 0.25, 0.25, 0.15])
+    mixture = rng.dirichlet(MIXED_STRUCTURE_MEAN * MIXED_STRUCTURE_CONCENTRATION)
+    counts = rng.multinomial(n_cities, mixture)
     parts = []
     if counts[0]:
         parts.append(sample_rings(rng, counts[0]))
@@ -264,8 +324,10 @@ def sample_cross(rng, n_cities):
 
 
 def sample_hidden_regime(rng, n_cities, regime):
-    if regime == MIXED_REGIME:
-        regime = str(rng.choice(DEFAULT_SCHEDULE))
+    if regime == MIXED_ID_REGIME:
+        regime = str(rng.choice(TRAIN_FAMILIES))
+    if regime == MIXED_OOD_REGIME:
+        regime = str(rng.choice(OOD_FAMILIES))
     if regime == "uniform":
         return sample_uniform(rng, n_cities)
     if regime == "cluster":
@@ -297,17 +359,27 @@ def sample_hidden_regime(rng, n_cities, regime):
     raise ValueError(f"Unknown hidden-test regime: {regime}")
 
 
+def regime_pool(regime):
+    if regime == MIXED_ID_REGIME:
+        return TRAIN_FAMILIES
+    if regime == MIXED_OOD_REGIME:
+        return OOD_FAMILIES
+    return [regime]
+
+
 def generate_hidden_dataset(seed, city_sizes, instances_per_size, schedule=None):
-    schedule = list(schedule or DEFAULT_SCHEDULE)
+    schedule = list(schedule or [MIXED_ID_REGIME, MIXED_OOD_REGIME])
     rng = np.random.default_rng(seed)
     rounds = []
     for round_id, regime in enumerate(schedule):
         coordinates = []
         instance_regimes = []
+        baselines = []
         for n_cities in city_sizes:
-            if regime == MIXED_REGIME:
+            pool = regime_pool(regime)
+            if regime in (MIXED_ID_REGIME, MIXED_OOD_REGIME):
                 regimes = [
-                    DEFAULT_SCHEDULE[idx % len(DEFAULT_SCHEDULE)]
+                    pool[idx % len(pool)]
                     for idx in range(instances_per_size)
                 ]
                 rng.shuffle(regimes)
@@ -315,14 +387,17 @@ def generate_hidden_dataset(seed, city_sizes, instances_per_size, schedule=None)
                 regimes = [regime] * instances_per_size
             for instance_regime in regimes:
                 coords = sample_hidden_regime(rng, n_cities, instance_regime)
+                _coords, _distance_matrix, baseline = make_tsp_instance(coords)
                 coordinates.append(coords)
                 instance_regimes.append(instance_regime)
+                baselines.append(float(baseline))
         rounds.append(
             {
                 "round_id": round_id,
                 "regime": regime,
                 "instance_regimes": instance_regimes,
                 "coordinates": coordinates,
+                "baselines": baselines,
             }
         )
     return {
@@ -335,29 +410,68 @@ def generate_hidden_dataset(seed, city_sizes, instances_per_size, schedule=None)
     }
 
 
+def generate_train_dataset(seed, n_cities, instances_per_family, families=None):
+    families = list(families or TRAIN_FAMILIES)
+    rng = np.random.default_rng(seed)
+    instances = []
+    instance_families = []
+    for family in families:
+        for _ in range(instances_per_family):
+            coords = sample_hidden_regime(rng, n_cities, family)
+            instances.append(make_tsp_instance(coords))
+            instance_families.append(family)
+    return {
+        "format": "eohs-open-world-tsp-train-v1",
+        "seed": int(seed),
+        "n_cities": int(n_cities),
+        "families": families,
+        "instances_per_family": int(instances_per_family),
+        "instances": instances,
+        "instance_families": instance_families,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path)
+    parser.add_argument("--mode", choices=["hidden", "train"], default="hidden")
     parser.add_argument("--seed", type=int, default=12026)
-    parser.add_argument("--city-sizes", type=int, nargs="+", default=[50, 100, 200])
+    parser.add_argument("--city-sizes", type=int, nargs="+", default=[100])
     parser.add_argument("--instances-per-size", type=int, default=128)
-    parser.add_argument("--schedule", nargs="+", default=[MIXED_REGIME])
+    parser.add_argument("--schedule", nargs="+", default=[MIXED_ID_REGIME, MIXED_OOD_REGIME])
+    parser.add_argument("--n-cities", type=int, default=100)
+    parser.add_argument("--instances-per-family", type=int, default=32)
+    parser.add_argument("--families", nargs="+", default=TRAIN_FAMILIES)
     args = parser.parse_args()
 
-    dataset = generate_hidden_dataset(
-        args.seed,
-        args.city_sizes,
-        args.instances_per_size,
-        schedule=args.schedule,
-    )
+    if args.mode == "train":
+        dataset = generate_train_dataset(
+            args.seed,
+            args.n_cities,
+            args.instances_per_family,
+            families=args.families,
+        )
+    else:
+        dataset = generate_hidden_dataset(
+            args.seed,
+            args.city_sizes,
+            args.instances_per_size,
+            schedule=args.schedule,
+        )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("wb") as handle:
         pickle.dump(dataset, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    total = sum(len(item["coordinates"]) for item in dataset["rounds"])
-    print(
-        f"saved {args.output} with {len(dataset['rounds'])} rounds, "
-        f"sizes={dataset['city_sizes']}, total_instances={total}"
-    )
+    if args.mode == "train":
+        print(
+            f"saved {args.output} train set with families={dataset['families']}, "
+            f"n_cities={dataset['n_cities']}, total_instances={len(dataset['instances'])}"
+        )
+    else:
+        total = sum(len(item["coordinates"]) for item in dataset["rounds"])
+        print(
+            f"saved {args.output} hidden set with {len(dataset['rounds'])} rounds, "
+            f"sizes={dataset['city_sizes']}, total_instances={total}"
+        )
 
 
 if __name__ == "__main__":

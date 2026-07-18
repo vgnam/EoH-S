@@ -83,6 +83,7 @@ def main():
     parser.add_argument("hidden_dataset", type=Path)
     parser.add_argument("--function-timeout-seconds", type=float, default=20.0)
     parser.add_argument("--speed-probe-timeout-seconds", type=float, default=3.0)
+    parser.add_argument("--output-prefix", default="post_eval_hidden_utility")
     args = parser.parse_args()
 
     hidden_dataset = load_hidden_tsp_dataset(args.hidden_dataset)
@@ -91,7 +92,7 @@ def main():
         args.method,
         hidden_dataset,
     )
-    per_round, _, _, summary, paths = save_hidden_utility_post_eval(
+    utility_by_size, output_path = save_hidden_utility_post_eval(
         args.log_dir,
         args.method,
         portfolios,
@@ -100,8 +101,9 @@ def main():
         round_workers=1 if args.function_timeout_seconds > 0 else 6,
         function_timeout_seconds=args.function_timeout_seconds,
         speed_probe_timeout_seconds=args.speed_probe_timeout_seconds,
+        output_prefix=args.output_prefix,
     )
-    print_hidden_utility_post_eval(args.method, per_round, summary, paths)
+    print_hidden_utility_post_eval(args.method, utility_by_size, output_path)
 
 
 if __name__ == "__main__":

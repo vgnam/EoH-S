@@ -1,15 +1,20 @@
 import sys
-
-sys.path.append("../../")
-
 import copy
 import csv
 import json
 import math
 import os
+import pickle
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]
+LOCAL_PYTHON_PACKAGES = REPO_ROOT / ".python_packages"
+if LOCAL_PYTHON_PACKAGES.exists():
+    sys.path.insert(0, str(LOCAL_PYTHON_PACKAGES))
+sys.path.insert(0, str(REPO_ROOT / "code"))
 
 import numpy as np
 import yaml
@@ -25,13 +30,29 @@ from post_train_open_world_eval import (
     save_hidden_utility_post_eval,
 )
 
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parents[2]
-
-
 def load_config(name):
     return yaml.safe_load((REPO_ROOT / "cfg" / name).read_text(encoding="utf-8"))
+
+
+def resolve_repo_path(path):
+    path = Path(path)
+    if path.is_absolute():
+        return path
+    return REPO_ROOT / path
+
+
+def hidden_dataset_paths(hidden_test_cfg):
+    paths = hidden_test_cfg.get("datasets")
+    if paths is None:
+        paths = [hidden_test_cfg["dataset"]]
+    return [resolve_repo_path(path) for path in paths]
+
+
+def hidden_output_prefix(path):
+    stem = Path(path).stem
+    if stem.startswith("dataset_tsp_hidden_"):
+        stem = stem[len("dataset_tsp_hidden_"):]
+    return f"post_eval_hidden_{stem}"
 
 
 def pairwise_distances(coords):
@@ -59,9 +80,36 @@ def nearest_neighbor_reference(distance_matrix):
     return tour_cost(distance_matrix, route)
 
 
+def lkh_reference(distance_matrix):
+    try:
+        import elkai
+    except Exception:
+        return nearest_neighbor_reference(distance_matrix)
+    scale = 1_000_000.0
+    integer_matrix = np.rint(np.asarray(distance_matrix, dtype=float) * scale).astype(int)
+    integer_matrix = np.maximum(integer_matrix, 0)
+    np.fill_diagonal(integer_matrix, 0)
+    try:
+        route = list(elkai.DistanceMatrix(integer_matrix.tolist()).solve_tsp(runs=10))
+    except Exception:
+        return nearest_neighbor_reference(distance_matrix)
+    if len(route) > 1 and route[0] == route[-1]:
+        route = route[:-1]
+    if len(route) != len(distance_matrix):
+        return nearest_neighbor_reference(distance_matrix)
+    return tour_cost(distance_matrix, route)
+
+
+def gap_score(length, baseline):
+    baseline = float(baseline)
+    if baseline <= 0 or not math.isfinite(baseline):
+        return None
+    return (baseline - float(length)) / baseline
+
+
 def make_tsp_instance(coords):
     distance_matrix = pairwise_distances(coords)
-    baseline = nearest_neighbor_reference(distance_matrix)
+    baseline = lkh_reference(distance_matrix)
     return coords, distance_matrix, baseline
 
 
@@ -118,23 +166,55 @@ def sample_bezier_surprise(rng, n_cities):
     return np.clip(coords, 0.0, 1.0)
 
 
-def build_wake_stream(seed=2026, rounds=6, batch_size=8, n_cities=40):
+def load_train_dataset(path=None, paths=None):
+    if paths is None:
+        if path is None:
+            raise ValueError("Either path or paths must be provided.")
+        paths = [path]
+    combined_instances = []
+    combined_families = []
+    family_order = []
+    resolved_paths = []
+    for item_path in paths:
+        item_path = resolve_repo_path(item_path)
+        resolved_paths.append(str(item_path))
+        with item_path.open("rb") as handle:
+            dataset = pickle.load(handle)
+        if isinstance(dataset, dict) and "instances" in dataset:
+            instances = list(dataset["instances"])
+            instance_families = list(dataset.get("instance_families", []))
+            families = list(dataset.get("families", []))
+        else:
+            instances = list(dataset)
+            instance_families = []
+            families = []
+        if not instance_families and len(families) == 1:
+            instance_families = [families[0]] * len(instances)
+        combined_instances.extend(instances)
+        combined_families.extend(instance_families)
+        for family in families:
+            if family not in family_order:
+                family_order.append(family)
+    if combined_families and len(combined_families) != len(combined_instances):
+        raise ValueError("Training dataset family metadata length does not match instances.")
+    return {
+        "path": resolved_paths[0] if len(resolved_paths) == 1 else resolved_paths,
+        "instances": combined_instances,
+        "instance_families": combined_families,
+        "families": family_order,
+    }
+
+
+def build_wake_stream(dataset=None, datasets=None, seed=2026, families=None, batch_size=None, shuffle=False):
+    train = load_train_dataset(path=dataset, paths=datasets)
+    instances = train["instances"]
+    if not instances:
+        raise ValueError("Training dataset contains no instances.")
     rng = np.random.default_rng(seed)
-    schedule = ["uniform", "uniform", "cluster", "bezier", "bezier", "cluster"]
-    stream = []
-    for round_id in range(rounds):
-        regime = schedule[round_id % len(schedule)]
-        batch = []
-        for _ in range(batch_size):
-            if regime == "uniform":
-                coords = sample_uniform(rng, n_cities)
-            elif regime == "cluster":
-                coords = sample_cluster(rng, n_cities)
-            else:
-                coords = sample_bezier_surprise(rng, n_cities)
-            batch.append(make_tsp_instance(coords))
-        stream.append(batch)
-    return stream
+    round_size = min(int(batch_size or len(instances)), len(instances))
+    while True:
+        indices = rng.choice(len(instances), size=round_size, replace=False)
+        yield [instances[int(idx)] for idx in indices]
 
 
 def tsp_descriptor(instance):
@@ -332,7 +412,7 @@ class TSPInMemoryEvaluation(Evaluation):
 
     def evaluate(self, heuristic):
         scores = []
-        for coords, distance_matrix, _baseline in self.instances:
+        for coords, distance_matrix, baseline in self.instances:
             n = len(coords)
             neighbor_matrix = self.generate_neighborhood_matrix(coords)
             destination_node = 0
@@ -351,7 +431,10 @@ class TSPInMemoryEvaluation(Evaluation):
             mask = ~np.isin(np.arange(n), route[: n - 1])
             route[n - 1] = np.arange(n)[mask][0]
             length = tour_cost(distance_matrix, route.tolist())
-            scores.append(-length)
+            score = gap_score(length, baseline)
+            if score is None:
+                return None
+            scores.append(score)
         return scores if self.return_list else float(np.mean(scores))
 
 
@@ -361,7 +444,8 @@ def main():
     method_cfg = cfg["method"]
     stream_config = cfg["stream"]
     hidden_test_config = cfg["hidden_test"]
-    method_cfg.setdefault("total_rounds", stream_config.get("rounds"))
+    wake_stream = build_wake_stream(**stream_config)
+    method_cfg.pop("total_rounds", None)
 
     llm = OpenAIAPI(
         base_url=os.environ.get(llm_cfg["base_url_env"], llm_cfg["base_url_default"]),
@@ -397,33 +481,56 @@ def main():
     )
 
     history = []
-    for round_id, wake_batch in enumerate(build_wake_stream(**stream_config)):
+    for round_id, wake_batch in enumerate(wake_stream):
         result = method.step(wake_batch, round_id=round_id)
         history.append(result)
         logger.record_round(result, llm)
         print(
             f"round={result.round_id} novelty={result.novelty_score:.3f} "
             f"threshold={result.novelty_threshold:.3f} accepted={result.accepted_regime} "
-            f"belief={result.belief} tokens={llm.token_usage()} log_dir={logger.log_dir}"
+            f"belief={result.belief} samples={result.eohs_total_samples_used}/"
+            f"{config.max_sample_nums} tokens={llm.token_usage()} log_dir={logger.log_dir}"
         )
-    hidden_dataset_path = REPO_ROOT / hidden_test_config["dataset"]
-    hidden_dataset = load_hidden_tsp_dataset(hidden_dataset_path)
+        if result.eohs_total_samples_used >= config.max_sample_nums:
+            break
+        if result.eohs_samples_used <= 0:
+            raise RuntimeError(
+                "OW-CAHD made no EOHS sample progress before reaching its sample budget."
+            )
     final_portfolio = method.portfolio
-    portfolios_by_round = {
-        int(item["round_id"]): final_portfolio
-        for item in hidden_dataset["rounds"]
-    }
-    per_round, _, _, overall, paths = save_hidden_utility_post_eval(
-        logger.log_dir,
-        "ow_cahd",
-        portfolios_by_round,
-        hidden_dataset_path,
-        portfolio_protocol="fixed final OW-CAHD portfolio",
-        round_workers=1 if hidden_test_config.get("function_timeout_seconds", 0) else 6,
-        function_timeout_seconds=hidden_test_config.get("function_timeout_seconds"),
-        speed_probe_timeout_seconds=hidden_test_config.get("speed_probe_timeout_seconds"),
-    )
-    print_hidden_utility_post_eval("ow_cahd", per_round, overall, paths)
+    for hidden_dataset_path in hidden_dataset_paths(hidden_test_config):
+        output_prefix = hidden_output_prefix(hidden_dataset_path)
+        try:
+            hidden_dataset = load_hidden_tsp_dataset(hidden_dataset_path)
+            portfolios_by_round = {
+                int(item["round_id"]): final_portfolio
+                for item in hidden_dataset["rounds"]
+            }
+            utility_by_size, output_path = save_hidden_utility_post_eval(
+                logger.log_dir,
+                "ow_cahd",
+                portfolios_by_round,
+                hidden_dataset_path,
+                portfolio_protocol="fixed final OW-CAHD portfolio",
+                round_workers=1 if hidden_test_config.get("function_timeout_seconds", 0) else 6,
+                function_timeout_seconds=hidden_test_config.get("function_timeout_seconds"),
+                speed_probe_timeout_seconds=hidden_test_config.get("speed_probe_timeout_seconds"),
+                output_prefix="post_eval_hidden_utility",
+            )
+            print_hidden_utility_post_eval("ow_cahd", utility_by_size, output_path)
+        except Exception as exc:
+            error_path = logger.log_dir / f"{output_prefix}_error.json"
+            error_path.write_text(
+                json.dumps(
+                    {
+                        "hidden_dataset_path": str(hidden_dataset_path),
+                        "error": f"{type(exc).__name__}: {exc}",
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            print(f"Post-eval failed for {hidden_dataset_path}: {type(exc).__name__}: {exc}")
     print(f"OW-CAHD logs written to {logger.log_dir}")
 
 

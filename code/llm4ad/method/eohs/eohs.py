@@ -329,12 +329,18 @@ class EoHS:
             # do initialization
             self._multi_threaded_sampling(self._iteratively_init_population)
             self._population.survival()
-            # terminate searching if
-            # if len(self._population) < self._selection_num:
-            #     print(f'The search is terminated since EoH unable to obtain {self._selection_num} feasible algorithms during initialization. '
-            #           f'Please increase the `initial_sample_nums_max` argument (currently {self._initial_sample_nums_max}). '
-            #           f'Please also check your evaluation implementation and LLM implementation.')
-            #     return
+            # Do not enter the evolutionary loop with an empty population.
+            # Selection would raise before sampling, so _tot_sample_nums would
+            # never advance and _continue_loop() would remain true forever.
+            if not self._population.population:
+                print(
+                    'The search is terminated because EoHS could not obtain a '
+                    f'feasible algorithm in {self._initial_sample_nums_max} initialization samples.'
+                )
+                self._evaluation_executor.shutdown(cancel_futures=True)
+                if self._profiler is not None:
+                    self._profiler.finish()
+                return
 
         # evolutionary search
         self._multi_threaded_sampling(self._iteratively_use_eoh_operator)
