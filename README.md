@@ -59,6 +59,205 @@ wake-sleep controller around it:
 5. **Portfolio deployment:** greedily select a small complementary portfolio
    from the candidate heuristics and evaluate it on held-out ID/OOD datasets.
 
+### Method in detail
+
+#### 1. Wake stream and instance representation
+
+At continual round `t`, the controller receives a wake batch
+`B_t = {x_1, ..., x_m}`. A task-specific descriptor `d(x)` maps every instance
+to a fixed-dimensional vector. The batch observation is the mean descriptor:
+
+```text
+phi_t = (1 / |B_t|) * sum(x in B_t) d(x).
+```
+
+The current runners use:
+
+- **TSP (8 dimensions):** coordinate center and spread, plus mean, standard
+  deviation, 10th percentile, and 90th percentile of pairwise distances.
+- **CVRP (12 dimensions):** the eight geometric TSP statistics, customer-demand
+  mean and standard deviation, total-demand/capacity ratio, and customer count.
+
+Descriptors are used only by the open-world controller. Heuristics are still
+evaluated on complete optimization instances.
+
+#### 2. Regime observation model and novelty
+
+Each known regime `z` stores one or more Gaussian descriptor components
+`(mu_zk, Sigma_zk)` and an executable generator. Covariance matrices are
+regularized by `covariance_reg`. For a wake observation, novelty is the nearest
+squared Mahalanobis distance over all regimes and mixture components:
+
+```text
+D_t = min(z, k) (phi_t - mu_zk)^T pinv(Sigma_zk) (phi_t - mu_zk).
+```
+
+The novelty threshold is the `(1 - alpha)` quantile of a chi-square distribution
+with `dim(phi_t)` degrees of freedom. A regime can be proposed after novelty is
+observed for `novelty_confirm_rounds` consecutive rounds. An optional RBF-MMD
+permutation test checks whether generated and observed descriptor samples could
+come from the same distribution before accepting that regime.
+
+The released TSP/CVRP experiment configs set `always_synthesize_regime: true`.
+Consequently, they synthesize and accept one new regime per wake round; novelty
+is still measured and logged, but it does not gate synthesis. They also set
+`skip_mmd_verification: true`. These are experimental choices rather than
+limitations of the controller.
+
+#### 3. LLM-based mixture regime synthesis
+
+To model a new regime, OW-CAHD asks the LLM for executable Python functions
+named `generate_instance`. Each prompt contains a deterministic random subset
+of observed instances, their descriptors, complete coordinates, task context,
+and any error returned by the previous attempt.
+
+The controller can request `K` generator hypotheses. Components use different
+temperatures and structural focuses such as global geometry, clustering,
+anisotropy, holes, multimodality, outliers, manifolds, and heterogeneous local
+mechanisms. Every returned program is parsed and compiled, then must:
+
+- define a callable `generate_instance` function;
+- return exactly the requested number of samples;
+- pass the task-specific instance validator; and
+- successfully generate the samples used to fit its observation model.
+
+Successful components form an equal-weight executable mixture. Sampling cycles
+across components and randomizes the resulting order. For component `k`, the
+controller fits `mu_zk` and `Sigma_zk` using both wake examples and generated
+fit samples. If too few components succeed, synthesis fails; a bootstrap
+resampling fallback is available through configuration.
+
+#### 4. Bayesian belief tracking
+
+Let `b_(t-1)(z)` be the previous belief over regimes. OW-CAHD first applies a
+sticky transition model. With `rho = sticky_transition`, the self-transition
+probability is `rho` and the remaining mass is distributed uniformly over the
+other regimes:
+
+```text
+pred_t = T^T b_(t-1)
+b_t(z) proportional to pred_t(z) * q_z(phi_t),
+```
+
+where `q_z` is the Gaussian or Gaussian-mixture descriptor likelihood. The
+implementation evaluates mixture likelihoods with log-sum-exp and uses
+pseudoinverses for numerical robustness. After normalization, `belief_floor`
+keeps every known regime represented and reduces catastrophic forgetting.
+
+When a new regime is accepted, it initially receives `new_regime_blend` belief
+mass; the previous beliefs share the remainder.
+
+#### 5. Sleep replay construction
+
+OW-CAHD builds a synthetic sleep set to rehearse known regimes before evolving
+the heuristic population. For each regime, it samples valid instances and
+estimates an information-gain value:
+
+```text
+g_z = mean_x KL(p(regime | d(x)) || b_t),  x sampled from regime z
+a_z = softmax(g_z / allocation_temperature).
+```
+
+The allocation `a_z` determines how many synthetic instances are drawn from
+each regime, subject to `min_sleep_per_regime`. Invalid generated samples are
+retried and can be replaced from the regime archive. Although information gain
+controls sample counts, the evaluation weight of each retained instance is:
+
+```text
+w_i proportional to b_t(z) / n_z,
+```
+
+so the total optimization weight of a regime follows the current belief rather
+than the number of samples allocated to it.
+
+#### 6. Continual EoH-S evolution
+
+The complete EoH-S population from the preceding round is rescored on the new
+sleep set. Valid functions warm-start the next EoH-S run, allowing evolution to
+continue instead of restarting from only the deployed portfolio. If an inner
+run fails completely, OW-CAHD retains the previous population.
+
+A single global sample budget is shared by all rounds. If `total_rounds` is
+known, the next allowance is:
+
+```text
+round_budget = ceil((total_budget - samples_used) / rounds_remaining).
+```
+
+Otherwise the inner run may use the remaining budget, subject to its generation
+limit. The controller stops once the global `max_sample_nums` budget is reached.
+
+#### 7. Complementary portfolio selection
+
+Each heuristic has a score vector over the sleep instances. Scores are
+min-max-normalized separately for every instance to obtain utilities `u_hi`.
+For a portfolio `P`, its weighted coverage objective is:
+
+```text
+F(P) = sum_i w_i * max(h in P) u_hi.
+```
+
+Starting from an empty set, OW-CAHD greedily adds the candidate with the largest
+increase in `F(P)` until `portfolio_size` functions have been selected. This
+retains complementary specialists: a heuristic is useful when it improves
+coverage on instances not already handled well by the selected set.
+
+#### 8. Hidden ID/OOD evaluation
+
+Training and regime construction never use hidden test instances. After the
+sample budget is exhausted, the final portfolio is evaluated on separate ID
+and OOD files at each problem size. For every instance, evaluation takes the
+best valid score achieved by any portfolio member. Constructive-task utility is
+the relative gap to a centrally computed reference:
+
+```text
+utility = (reference_cost - heuristic_cost) / reference_cost.
+```
+
+Higher utility is better; zero matches the reference and a negative value is a
+percentage excess cost. TSP uses LKH/elkai with nearest-neighbor fallback as its
+reference. CVRP uses Clarke-Wright Savings followed by route-level 2-opt.
+
+#### Algorithm summary
+
+```text
+Input: wake stream, descriptor d, total EoH-S budget, portfolio size M
+Initialize regimes = {}, belief = {}, population = {}, portfolio = {}
+
+for each wake batch B_t:
+    compute phi_t and novelty statistic
+    synthesize/verify/accept a regime when configured
+    update Bayesian belief over all regimes
+    allocate and generate the weighted sleep replay set
+    rescore the inherited full population on replay
+    run budgeted EoH-S, warm-started by valid inherited functions
+    preserve the resulting full population
+    greedily select an M-function complementary portfolio
+    log regimes, beliefs, budgets, candidates, portfolio, and token usage
+    stop when the global sample budget is exhausted
+
+return final portfolio
+```
+
+#### Reference experimental settings
+
+| Parameter | TSP/CVRP value | Role |
+| --- | ---: | --- |
+| Wake batch size | 32 | Observed instances per round |
+| Sleep instances | 128 | Replay instances per round |
+| Minimum per regime | 8 | Prevents a known regime from disappearing |
+| Mixture components | 10 | LLM generator hypotheses per new regime |
+| Prompt examples | 4 | Observed instances shown per synthesis call |
+| Fit samples per component | 64 | Fits descriptor mean/covariance |
+| Covariance regularization | 0.0001 | Stabilizes Gaussian models |
+| Belief floor | 0.02 | Retains probability mass for old regimes |
+| Sticky transition | 0.92 | Prior probability of staying in a regime |
+| Allocation temperature | 0.5 | Controls information-gain allocation sharpness |
+| Portfolio size | 10 | Number of deployed complementary heuristics |
+| Total EoH-S samples | 500 | Shared continual-search budget |
+| Inner generations | 8 | Maximum generations per round |
+| EoH-S population | 10 | Full inherited evolutionary population |
+
 The repository includes reproducible open-world pipelines for constructive TSP
 and CVRP. Both use separate training families and hidden ID/OOD datasets at
 sizes 20, 50, and 100. The total EoH-S sampling budget is shared across
