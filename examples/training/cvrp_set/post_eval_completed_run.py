@@ -57,29 +57,30 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("method", choices=["eohs", "ow_cahd"])
     parser.add_argument("log_dir", type=Path)
-    parser.add_argument("hidden_dataset", type=Path)
+    parser.add_argument("hidden_datasets", type=Path, nargs="+")
     parser.add_argument("--function-timeout-seconds", type=float, default=60.0)
     parser.add_argument("--speed-probe-timeout-seconds", type=float, default=0.0)
     parser.add_argument("--output-prefix", default="post_eval_hidden_utility")
     args = parser.parse_args()
 
-    hidden_dataset = load_hidden_cvrp_dataset(args.hidden_dataset)
     portfolio, protocol = load_completed_portfolio(args.log_dir, args.method)
-    portfolios_by_round = {
-        int(item["round_id"]): portfolio for item in hidden_dataset["rounds"]
-    }
-    rows, output_path = save_hidden_utility_post_eval(
-        args.log_dir,
-        args.method,
-        portfolios_by_round,
-        args.hidden_dataset,
-        portfolio_protocol=protocol,
-        round_workers=1,
-        function_timeout_seconds=args.function_timeout_seconds,
-        speed_probe_timeout_seconds=args.speed_probe_timeout_seconds,
-        output_prefix=args.output_prefix,
-    )
-    print_hidden_utility_post_eval(args.method, rows, output_path)
+    for hidden_dataset_path in args.hidden_datasets:
+        hidden_dataset = load_hidden_cvrp_dataset(hidden_dataset_path)
+        portfolios_by_round = {
+            int(item["round_id"]): portfolio for item in hidden_dataset["rounds"]
+        }
+        rows, output_path = save_hidden_utility_post_eval(
+            args.log_dir,
+            args.method,
+            portfolios_by_round,
+            hidden_dataset_path,
+            portfolio_protocol=protocol,
+            round_workers=1,
+            function_timeout_seconds=args.function_timeout_seconds,
+            speed_probe_timeout_seconds=args.speed_probe_timeout_seconds,
+            output_prefix=args.output_prefix,
+        )
+        print_hidden_utility_post_eval(args.method, rows, output_path)
 
 
 if __name__ == "__main__":
