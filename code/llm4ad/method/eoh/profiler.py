@@ -54,6 +54,8 @@ class EoHProfiler(ProfilerBase):
             if (self.__class__._num_samples == 0 or
                     pop.generation == self.__class__._cur_gen):
                 return
+            if not getattr(self, "_ckpt_dir", None):
+                return
             funcs = pop.population  # type: List[Function]
             funcs_json = []  # type: List[Dict]
             for f in funcs:

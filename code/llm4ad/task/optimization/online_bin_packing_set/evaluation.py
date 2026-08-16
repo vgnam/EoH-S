@@ -55,7 +55,8 @@ class OBPSEvaluation(Evaluation):
                  n_instances=None,
                  dataset=None,
                  datasets=None,
-                 return_list = False,
+                 instances=None,
+                 return_list=False,
                  **kwargs):
         """
         Args:
@@ -76,20 +77,16 @@ class OBPSEvaluation(Evaluation):
         )
 
         self.return_list = return_list
-        dataset_paths = datasets if datasets is not None else dataset
-        if dataset_paths is None:
-            raise ValueError("Either dataset or datasets must be provided.")
-        if isinstance(dataset_paths, (str, Path)):
-            dataset_paths = [dataset_paths]
-
         self._datasets = {}
-        for dataset_path in dataset_paths:
-            with Path(dataset_path).open('rb') as handle:
-                loaded = pkl.load(handle)
-            if isinstance(loaded, dict) and "instances" in loaded:
-                loaded = loaded["instances"]
-            if not isinstance(loaded, dict):
-                loaded = {f"instance_{index}": instance for index, instance in enumerate(loaded)}
+        if instances is not None:
+            if isinstance(instances, dict):
+                loaded = instances
+            elif isinstance(instances, (list, tuple)):
+                loaded = {
+                    f"instance_{index}": instance for index, instance in enumerate(instances)
+                }
+            else:
+                raise ValueError("instances must be a dict or a list of OBP instances.")
             for name, instance in loaded.items():
                 unique_name = str(name)
                 suffix = 1
@@ -97,6 +94,28 @@ class OBPSEvaluation(Evaluation):
                     unique_name = f"{name}_{suffix}"
                     suffix += 1
                 self._datasets[unique_name] = instance
+        else:
+            dataset_paths = datasets if datasets is not None else dataset
+            if dataset_paths is None:
+                raise ValueError("Either dataset, datasets, or instances must be provided.")
+            if isinstance(dataset_paths, (str, Path)):
+                dataset_paths = [dataset_paths]
+            for dataset_path in dataset_paths:
+                with Path(dataset_path).open('rb') as handle:
+                    loaded = pkl.load(handle)
+                if isinstance(loaded, dict) and "instances" in loaded:
+                    loaded = loaded["instances"]
+                if not isinstance(loaded, dict):
+                    loaded = {
+                        f"instance_{index}": instance for index, instance in enumerate(loaded)
+                    }
+                for name, instance in loaded.items():
+                    unique_name = str(name)
+                    suffix = 1
+                    while unique_name in self._datasets:
+                        unique_name = f"{name}_{suffix}"
+                        suffix += 1
+                    self._datasets[unique_name] = instance
 
         loaded_count = len(self._datasets)
         if loaded_count == 0:

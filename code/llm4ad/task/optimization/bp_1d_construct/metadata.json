@@ -1,0 +1,167 @@
+{
+  "task": "bp_1d_construct",
+  "seed": 20260702,
+  "instances_per_size": 64,
+  "sizes": [
+    100,
+    500,
+    1000,
+    2000
+  ],
+  "capacity": 100,
+  "id_families": [
+    "beta"
+  ],
+  "ood_families": [
+    "uniform_small",
+    "bimodal",
+    "near_capacity",
+    "lognormal"
+  ],
+  "files": [
+    {
+      "split": "train",
+      "size": 100,
+      "path": "train_datasets/size_100.pkl",
+      "n_instances": 64,
+      "sha256": "2f0c11d65e4834e39d56a647eb1520053a6e906e74d733e8eb507766bc6df34a",
+      "bytes": 13328,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "train",
+      "size": 500,
+      "path": "train_datasets/size_500.pkl",
+      "n_instances": 64,
+      "sha256": "43914116416cf1a289d6696af152165fb0469f63f65d40ce0482612506452f2a",
+      "bytes": 64528,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "train",
+      "size": 1000,
+      "path": "train_datasets/size_1000.pkl",
+      "n_instances": 64,
+      "sha256": "73983875ba5e58fb5db0c019fb408ce97abdd1bf64500fe0cb8b59cd34982376",
+      "bytes": 128537,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "train",
+      "size": 2000,
+      "path": "train_datasets/size_2000.pkl",
+      "n_instances": 64,
+      "sha256": "483432c13035ac417810e3cdbda6dc6d9304bad3fdb01d66a26cff952a78552e",
+      "bytes": 256683,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 100,
+      "path": "test_datasets/size_100.pkl",
+      "n_instances": 64,
+      "sha256": "ee80845d055378944581f2ec0fd61dc40469072b13106c2e2a3e5262d5ca15ba",
+      "bytes": 13328,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 500,
+      "path": "test_datasets/size_500.pkl",
+      "n_instances": 64,
+      "sha256": "2fc3a31552b99fc8149e67577a1fc38fcf0f859145dd6e937544cc2f33bacee7",
+      "bytes": 64528,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 1000,
+      "path": "test_datasets/size_1000.pkl",
+      "n_instances": 64,
+      "sha256": "065097dd154a0d11c7d28158ff963997f99dc5526e1a34b23121bfbd3339c5c2",
+      "bytes": 128537,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 2000,
+      "path": "test_datasets/size_2000.pkl",
+      "n_instances": 64,
+      "sha256": "c61e61183a40b7be51d85128c00cc8f36c2e5389639e4b32b1a9e42f9c2ca02f",
+      "bytes": 256683,
+      "distribution_counts": {
+        "beta": 64
+      }
+    },
+    {
+      "split": "ood",
+      "size": 100,
+      "path": "ood_test_datasets/mixture/size_100.pkl",
+      "n_instances": 64,
+      "sha256": "7acb7400524e484e9b6c69cd802840c96ad17aec66a7715bce94e241a764b34a",
+      "bytes": 13328,
+      "distribution_counts": {
+        "bimodal": 16,
+        "lognormal": 16,
+        "near_capacity": 16,
+        "uniform_small": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 500,
+      "path": "ood_test_datasets/mixture/size_500.pkl",
+      "n_instances": 64,
+      "sha256": "0cf9ee6d7b893bccbb751117cd17120fb907dd3dd2982924ed452470cbd7d92b",
+      "bytes": 64528,
+      "distribution_counts": {
+        "bimodal": 16,
+        "lognormal": 16,
+        "near_capacity": 16,
+        "uniform_small": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 1000,
+      "path": "ood_test_datasets/mixture/size_1000.pkl",
+      "n_instances": 64,
+      "sha256": "bc9e99644c8dda60aef0c13cd639ff509ce924cfc8a1056f9a8bd8cb0ccdf9f7",
+      "bytes": 128537,
+      "distribution_counts": {
+        "bimodal": 16,
+        "lognormal": 16,
+        "near_capacity": 16,
+        "uniform_small": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 2000,
+      "path": "ood_test_datasets/mixture/size_2000.pkl",
+      "n_instances": 64,
+      "sha256": "62c8714b4b68893ae16e537af0b658c26274efee2990873ed67f61e944ffc980",
+      "bytes": 256683,
+      "distribution_counts": {
+        "bimodal": 16,
+        "lognormal": 16,
+        "near_capacity": 16,
+        "uniform_small": 16
+      }
+    }
+  ]
+}

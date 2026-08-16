@@ -1,9 +1,9 @@
 llm:
   base_url_env: OPENAI_BASE_URL
-  base_url_default: https://api.vectorengine.ai/v1
+  base_url_default: https://opencode.ai/zen/go/v1
   api_key_env: OPENAI_API_KEY
   model_env: OPENAI_MODEL
-  model_default: deepseek-v3
+  model_default: deepseek-v4-flash
   timeout: 60
 
 task:

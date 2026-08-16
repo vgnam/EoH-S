@@ -1,25 +1,25 @@
-# OBP multi-size training
+# OBP construct training (TSP/CVRP-style IID train + ID/OOD hidden eval)
 
-The OBP EoH-S setup uses exactly one train size per run. Size 500 is the
-default; the available independent train sets contain 200, 500, or 1000 items
-per instance. Configuration is in `cfg/obp_eohs.yaml`.
+All four methods (EoH, EoHS, MCTS_AHD, OW-CAHD) follow the TSP/CVRP construct
+protocol: train on ONE IID train size (size 500 with 64 instances by default),
+then post-evaluate on the hidden ID and OOD datasets of ALL sizes (200/500/1000,
+128 instances per size). EoH/EoHS post-eval the whole population; MCTS_AHD
+post-evals its top-10 train-score individuals.
 
-Set `OPENAI_API_KEY` and optionally `OPENAI_BASE_URL` / `OPENAI_MODEL`, then run
-from the repository root:
+Configs: cfg/obp_eoh.yaml, cfg/obp_eohs.yaml, cfg/obp_mcts_ahd.yaml,
+cfg/obp_ow_cahd.yaml.
 
-```powershell
-py -3 examples\training\obp_set\run_eohs.py
-```
+Set OPENAI_API_KEY and optionally OPENAI_BASE_URL / OPENAI_MODEL, then run
+from the repository root (Python 3.10 recommended):
 
-Select a different train set with `--train-size`:
+    py -3 examples\training\obp_set\run_eoh.py
+    py -3 examples\training\obp_set\run_eohs.py
+    py -3 examples\training\obp_set\run_mcts_ahd.py
+    py -3 examples\training\obp_set\run_ow_cahd.py
 
-```powershell
-py -3 examples\training\obp_set\run_eohs.py --train-size 200
-py -3 examples\training\obp_set\run_eohs.py --train-size 1000
-```
+Per run, the script writes run_config.json, token_usage.json, and one
+post_eval_hidden_<id|ood>_size<size>.csv (+ .json) per hidden dataset into
+the configured log directory (examples/training/obp_set/logs/<method>).
 
-Logs are separated into `size200`, `size500`, and `size1000` directories so
-runs using different train sets do not overwrite each other.
-
-See `datasets/obp/README.md` for the ID/OOD split definitions and the command
+See datasets/obp/README.md for the ID/OOD split definitions and the command
 used to regenerate all data files.

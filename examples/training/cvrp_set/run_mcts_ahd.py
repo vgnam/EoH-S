@@ -1,0 +1,122 @@
+import json
+import os
+import sys
+from pathlib import Path
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]
+sys.path.insert(0, str(REPO_ROOT / "code"))
+
+import yaml
+
+from llm4ad.method.mcts_ahd import MCTS_AHD, MAProfiler
+from llm4ad.task.optimization.cvrp_construct_set import CVRPSEvaluation
+from llm4ad.tools.llm.llm_api_openai import OpenAIAPI
+from cvrp_common import load_hidden_cvrp_dataset, resolve_repo_path
+from post_train_hidden_eval import print_hidden_utility_post_eval, save_hidden_utility_post_eval
+
+
+def load_config():
+    return yaml.safe_load((REPO_ROOT / "cfg" / "cvrp_mcts_ahd.yaml").read_text(encoding="utf-8"))
+
+
+def hidden_dataset_paths(hidden_test_cfg):
+    paths = hidden_test_cfg.get("datasets")
+    if paths is None:
+        paths = [hidden_test_cfg["dataset"]]
+    return [resolve_repo_path(path) for path in paths]
+
+
+def select_top_k(population, k=10):
+    scored = [func for func in population if getattr(func, "score", None) is not None]
+    return sorted(scored, key=lambda func: func.score, reverse=True)[:k]
+
+
+def save_final_population(log_dir, population):
+    rows = []
+    for function in population:
+        score = function.score
+        if hasattr(score, "tolist"):
+            score = score.tolist()
+        rows.append(
+            {
+                "name": function.name,
+                "algorithm": getattr(function, "algorithm", ""),
+                "score": score,
+                "function": str(function),
+            }
+        )
+    output_path = Path(log_dir) / "post_eval_open_world_functions.json"
+    output_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    return output_path
+
+
+def main():
+    cfg = load_config()
+    llm_cfg = cfg["llm"]
+    task_cfg = cfg["task"]
+    hidden_test_cfg = cfg["hidden_test"]
+    profiler_cfg = dict(cfg["profiler"])
+    profiler_cfg["log_dir"] = str(resolve_repo_path(profiler_cfg["log_dir"]))
+
+    llm = OpenAIAPI(
+        base_url=os.environ.get(llm_cfg["base_url_env"], llm_cfg["base_url_default"]),
+        api_key=os.environ[llm_cfg["api_key_env"]],
+        model=os.environ.get(llm_cfg["model_env"], llm_cfg["model_default"]),
+        timeout=llm_cfg["timeout"],
+    )
+    task = CVRPSEvaluation(
+        timeout_seconds=task_cfg["timeout_seconds"],
+        datasets=[str(resolve_repo_path(path)) for path in task_cfg["datasets"]],
+        return_list=task_cfg["return_list"],
+    )
+    profiler = MAProfiler(**profiler_cfg)
+    method = MCTS_AHD(llm=llm, profiler=profiler, evaluation=task, **cfg["method"])
+    method.run()
+
+    token_usage = llm.token_usage()
+    print(f"Token usage: {token_usage}")
+    if not profiler._log_dir:
+        return
+    log_dir = Path(profiler._log_dir)
+    (log_dir / "run_config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    (log_dir / "token_usage.json").write_text(json.dumps(token_usage, indent=2), encoding="utf-8")
+    final_population = select_top_k(method._population.population, 10)
+    final_population_path = save_final_population(log_dir, final_population)
+    print(f"Final MCTS_AHD population saved to {final_population_path}")
+    for hidden_dataset_path in hidden_dataset_paths(hidden_test_cfg):
+        try:
+            hidden_dataset = load_hidden_cvrp_dataset(hidden_dataset_path)
+            portfolios_by_round = {
+                int(item["round_id"]): final_population for item in hidden_dataset["rounds"]
+            }
+            rows, output_path = save_hidden_utility_post_eval(
+                log_dir,
+                "mcts_ahd",
+                portfolios_by_round,
+                hidden_dataset_path,
+                portfolio_protocol="fixed final MCTS_AHD population",
+                round_workers=1,
+                function_timeout_seconds=hidden_test_cfg.get("function_timeout_seconds"),
+                speed_probe_timeout_seconds=hidden_test_cfg.get("speed_probe_timeout_seconds"),
+                output_prefix="post_eval_hidden_utility",
+            )
+            print_hidden_utility_post_eval("mcts_ahd", rows, output_path)
+        except Exception as exc:
+            error_path = log_dir / f"post_eval_{hidden_dataset_path.stem}_error.json"
+            error_path.write_text(
+                json.dumps(
+                    {
+                        "hidden_dataset_path": str(hidden_dataset_path),
+                        "error": f"{type(exc).__name__}: {exc}",
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            print(f"Post-eval failed for {hidden_dataset_path}: {type(exc).__name__}: {exc}")
+
+
+if __name__ == "__main__":
+    main()

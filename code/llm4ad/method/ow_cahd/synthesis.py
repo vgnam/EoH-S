@@ -282,18 +282,31 @@ def build_synthesis_prompt(
         instance_descriptor = np.asarray(descriptor(instance), dtype=float).ravel().tolist()
         coords_source = instance
         if isinstance(instance, (tuple, list)) and len(instance) in (3, 5):
-            candidate = np.asarray(instance[0])
-            if candidate.ndim == 2 and candidate.shape[1] == 2:
+            try:
+                candidate = np.asarray(instance[0])
+            except Exception:
+                candidate = None
+            if candidate is not None and candidate.ndim == 2 and candidate.shape[1] == 2:
                 coords_source = instance[0]
-        coords = np.asarray(coords_source, dtype=float)
-        n_cities = int(len(coords))
-        coords_observed = np.asarray(coords, dtype=float).round(6).tolist()
-        examples.append(
-            f"Example {idx}\n"
-            f"descriptor = {instance_descriptor}\n"
-            f"n_cities = {n_cities}\n"
-            f"coords = {coords_observed}\n"
-        )
+        try:
+            coords = np.asarray(coords_source, dtype=float)
+            n_cities = int(len(coords))
+            coords_observed = np.asarray(coords, dtype=float).round(6).tolist()
+            examples.append(
+                f"Example {idx}\n"
+                f"descriptor = {instance_descriptor}\n"
+                f"n_cities = {n_cities}\n"
+                f"coords = {coords_observed}\n"
+            )
+        except Exception:
+            observed = repr(coords_source)
+            if len(observed) > 1200:
+                observed = observed[:1200] + " ...(truncated)"
+            examples.append(
+                f"Example {idx}\n"
+                f"descriptor = {instance_descriptor}\n"
+                f"instance = {observed}\n"
+            )
 
     error_block = ""
     if last_error:
@@ -348,8 +361,9 @@ def build_synthesis_prompt(
         "- The function must be deterministic for a fixed seed.\n"
         "- Normalize every seed passed to numpy RandomState or np.random.seed with "
         "int(derived_seed) % (2**32 - 1).\n"
-        "- Return each instance as coordinates only: a numpy array or nested list "
-        "with shape (n_cities, 2). Do not compute or return distance_matrix or baseline.\n"
+        "- Return each instance in exactly the format described in the "
+        "Domain/context above (for coordinate-based tasks return only the "
+        "coordinates; never compute or return derived distance matrices or baselines).\n"
         "- Do not call external solvers, files, network, or plotting APIs.\n"
         "- Include any helper logic inside generate_instance, not as separate top-level functions.\n"
         "- Output only a Python code block or raw Python code.\n"

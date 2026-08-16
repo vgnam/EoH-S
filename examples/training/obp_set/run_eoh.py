@@ -1,36 +1,34 @@
+from __future__ import annotations
+
 import sys
+from pathlib import Path
 
-sys.path.append('../../')  # This is for finding all the modules
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]
+sys.path.insert(0, str(REPO_ROOT / "code"))
+sys.path.insert(0, str(SCRIPT_DIR.parent))  # examples/training shared modules
 
-from llm4ad.task.optimization.online_bin_packing_set import OBPSEvaluation
-from llm4ad.tools.llm.llm_api_https import HttpsApi
-from llm4ad.method.eoh import EoH,EoHProfiler
+from llm4ad.method.eoh import EoH, EoHProfiler
+from common import build_task, hidden_specs, hidden_eval_factory
+from construct_run_common import run_construct_training
 
 
 def main():
-
-    llm = HttpsApi(host='xxx',  # your host endpoint, e.g., 'api.openai.com', 'api.deepseek.com'
-                   key='xxx',  # your key, e.g., 'sk-abcdefghijklmn'
-                   model='deepseek-v3',  # your llm, e.g., 'gpt-3.5-turbo'
-                   timeout=60)
-
-    task = OBPSEvaluation(
-        timeout_seconds=120,
-        dataset='./dataset_100_2k_128_5_80_training.pkl',
-        return_list=True)
-
-    method = EoH(llm=llm,
-                 profiler=EoHProfiler(log_dir='logs/eoh', log_style='simple'),
-                 evaluation=task,
-                 max_sample_nums=2000,
-                 max_generations=1000,
-                 pop_size=10,
-                 num_samplers=4,
-                 num_evaluators=4,
-                 debug_mode=False)
-
-    method.run()
+    run_construct_training(
+        cfg_name="obp_eoh.yaml",
+        method_label="eoh",
+        task_builder=build_task,
+        profiler_factory=lambda profiler_cfg: EoHProfiler(**profiler_cfg),
+        method_factory=lambda llm, profiler, task, method_cfg: EoH(
+            llm=llm,
+            profiler=profiler,
+            evaluation=task,
+            **method_cfg,
+        ),
+        hidden_specs_fn=hidden_specs,
+        hidden_eval_factory_fn=hidden_eval_factory,
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

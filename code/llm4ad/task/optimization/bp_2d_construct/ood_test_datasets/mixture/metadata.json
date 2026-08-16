@@ -1,0 +1,71 @@
+{
+  "task": "bp_2d_construct",
+  "suite": "mixture",
+  "split": "ood_test",
+  "reference_split": "train (ID)",
+  "seed": 20260702,
+  "families": [
+    "slender",
+    "large_squares",
+    "bimodal",
+    "small_dense"
+  ],
+  "datasets": [
+    {
+      "split": "ood",
+      "size": 50,
+      "path": "ood_test_datasets/mixture/size_50.pkl",
+      "n_instances": 64,
+      "sha256": "87c8c77f4aea16737f1b4e58b3563876e4b1539c5bf1c4de7046f625c0c4a590",
+      "bytes": 19732,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 100,
+      "path": "ood_test_datasets/mixture/size_100.pkl",
+      "n_instances": 64,
+      "sha256": "8ec7e6beb2be775730d175b1815b0c7b6ca047dbe7b46d9255053935331ac9df",
+      "bytes": 38932,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 200,
+      "path": "ood_test_datasets/mixture/size_200.pkl",
+      "n_instances": 64,
+      "sha256": "8addd2d12d5f82c7b30a4d64322efc3881fa431e6eea16249305bddf3046935c",
+      "bytes": 77341,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 500,
+      "path": "ood_test_datasets/mixture/size_500.pkl",
+      "n_instances": 64,
+      "sha256": "1712cb9e1763a54f38429fbf96af376bc9b09a8eb211cb01a31672043b7bbf8b",
+      "bytes": 192739,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    }
+  ]
+}

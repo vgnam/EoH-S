@@ -1,0 +1,170 @@
+{
+  "task": "bp_2d_construct",
+  "seed": 20260702,
+  "instances_per_size": 64,
+  "sizes": [
+    50,
+    100,
+    200,
+    500
+  ],
+  "bin_dimensions": [
+    100,
+    100
+  ],
+  "id_families": [
+    "uniform"
+  ],
+  "ood_families": [
+    "slender",
+    "large_squares",
+    "bimodal",
+    "small_dense"
+  ],
+  "files": [
+    {
+      "split": "train",
+      "size": 50,
+      "path": "train_datasets/size_50.pkl",
+      "n_instances": 64,
+      "sha256": "410f9c2e07a7efc56f7de79d42390586680e068d8ddcadd3835def12dd9d1804",
+      "bytes": 19732,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "train",
+      "size": 100,
+      "path": "train_datasets/size_100.pkl",
+      "n_instances": 64,
+      "sha256": "7316103d97fe4064df9be1e1def68024f08e3bbd5399f790c9259f04a778e77b",
+      "bytes": 38932,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "train",
+      "size": 200,
+      "path": "train_datasets/size_200.pkl",
+      "n_instances": 64,
+      "sha256": "2ebede57752204160b3e18d5603dd909fb21f1c1b1ae92c83c0918d8d40ca3f8",
+      "bytes": 77341,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "train",
+      "size": 500,
+      "path": "train_datasets/size_500.pkl",
+      "n_instances": 64,
+      "sha256": "430614a775b18fb33fd0cf37278a0df5b7482168be7e259fbad8ecda1706b5b0",
+      "bytes": 192739,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 50,
+      "path": "test_datasets/size_50.pkl",
+      "n_instances": 64,
+      "sha256": "7783f6318899ea59d600e554c0132b6ad39a0c0f14f8b15b0820e2b0f698caf3",
+      "bytes": 19732,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 100,
+      "path": "test_datasets/size_100.pkl",
+      "n_instances": 64,
+      "sha256": "0dca8c004c5fbb634ccd550c482590626a13dc42168ead3f3875db70cd68c036",
+      "bytes": 38932,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 200,
+      "path": "test_datasets/size_200.pkl",
+      "n_instances": 64,
+      "sha256": "e7d4fa28d24ac8436e358ca4f952e521e4fe91278d1b06a90c8ef71d2bda1693",
+      "bytes": 77341,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "id",
+      "size": 500,
+      "path": "test_datasets/size_500.pkl",
+      "n_instances": 64,
+      "sha256": "dedf888c5115a2b70d6f58296ae09a262791b6f797ef4c9f6331c1ef95a157cb",
+      "bytes": 192739,
+      "distribution_counts": {
+        "uniform": 64
+      }
+    },
+    {
+      "split": "ood",
+      "size": 50,
+      "path": "ood_test_datasets/mixture/size_50.pkl",
+      "n_instances": 64,
+      "sha256": "87c8c77f4aea16737f1b4e58b3563876e4b1539c5bf1c4de7046f625c0c4a590",
+      "bytes": 19732,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 100,
+      "path": "ood_test_datasets/mixture/size_100.pkl",
+      "n_instances": 64,
+      "sha256": "8ec7e6beb2be775730d175b1815b0c7b6ca047dbe7b46d9255053935331ac9df",
+      "bytes": 38932,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 200,
+      "path": "ood_test_datasets/mixture/size_200.pkl",
+      "n_instances": 64,
+      "sha256": "8addd2d12d5f82c7b30a4d64322efc3881fa431e6eea16249305bddf3046935c",
+      "bytes": 77341,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    },
+    {
+      "split": "ood",
+      "size": 500,
+      "path": "ood_test_datasets/mixture/size_500.pkl",
+      "n_instances": 64,
+      "sha256": "1712cb9e1763a54f38429fbf96af376bc9b09a8eb211cb01a31672043b7bbf8b",
+      "bytes": 192739,
+      "distribution_counts": {
+        "bimodal": 16,
+        "large_squares": 16,
+        "slender": 16,
+        "small_dense": 16
+      }
+    }
+  ]
+}

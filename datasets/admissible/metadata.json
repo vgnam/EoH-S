@@ -1,0 +1,41 @@
+{
+  "task": "admissible_set",
+  "seed": 20260702,
+  "train_instances": 32,
+  "id_instances": 32,
+  "ood_instances": 24,
+  "files": [
+    {
+      "split": "train",
+      "path": "train/asp_train.pkl",
+      "n_instances": 32,
+      "family_counts": {
+        "n15w10": 32
+      },
+      "sha256": "9a4c973f3e225d9d69993da1c0a0253b817c1cd1815f6ba6cae51e5797867b82",
+      "bytes": 752
+    },
+    {
+      "split": "id",
+      "path": "id/asp_id.pkl",
+      "n_instances": 32,
+      "family_counts": {
+        "n15w10": 32
+      },
+      "sha256": "676c283b0ba5a156974082ea1f64f0a7d43f1b06439b3904294b2f30c77b9c69",
+      "bytes": 755
+    },
+    {
+      "split": "ood",
+      "path": "ood/asp_ood.pkl",
+      "n_instances": 24,
+      "family_counts": {
+        "n12w7": 8,
+        "n21w15": 8,
+        "n24w17": 8
+      },
+      "sha256": "583c6431279ee08b5ec56b36514113452f16b1d673064fcce30d9768f9fbaa5a",
+      "bytes": 629
+    }
+  ]
+}

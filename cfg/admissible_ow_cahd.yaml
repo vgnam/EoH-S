@@ -1,0 +1,49 @@
+llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: "https://opencode.ai/zen/go/v1"
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v4-flash
+  timeout: 60
+logger:
+  root: examples/training/admissible_set/logs/ow_cahd
+stream:
+  datasets: [datasets/admissible/train/asp_train.pkl]
+  seed: 2026
+  batch_size: 32
+  shuffle: true
+method:
+  portfolio_size: 10
+  min_sleep_per_regime: 4
+  novelty_alpha: 0.01
+  novelty_confirm_rounds: 2
+  skip_mmd_verification: true
+  auto_accept_regime: false
+  always_synthesize_regime: true
+  allow_bootstrap_fallback: true
+  llm_synthesis_examples: 4
+  llm_synthesis_min_successful_components: 1
+  covariance_reg: 0.0001
+  belief_floor: 0.02
+  max_generations: 8
+  pop_size: 10
+  num_samplers: 1
+  num_evaluators: 1
+  debug_mode: false
+  print_eohs_samples: true
+  sleep_instances_per_round: 4
+  fit_samples_per_regime: 8
+  llm_synthesis_mixture_components: 4
+  llm_synthesis_temperatures: [0.3, 0.5, 0.7, 0.9]
+  max_sample_nums: 300
+  synthesis_context: "Admissible-set search (FunSearch). Each generated instance must be a dict with keys dimension, weight, seed. Valid (dimension, weight) pairs are only (12, 7), (15, 10), (21, 15), (24, 17); dimension must be divisible by 3. seed is an integer in [0, 4294967295] driving the greedy tie-break order. Prefer the cheap pairs (12, 7) and (15, 10) for most generated instances because (21, 15) and (24, 17) are very expensive to evaluate; use larger sizes only occasionally."
+hidden_test:
+  id_datasets: [datasets/admissible/id/asp_id.pkl]
+  ood_datasets: [datasets/admissible/ood/asp_ood.pkl]
+  id_eval_instances: 32
+  ood_eval_instances: 3
+  instances_per_size:
+    id: 32
+    ood: 24
+  function_timeout_seconds: 21600
+  speed_probe_timeout_seconds: 0
