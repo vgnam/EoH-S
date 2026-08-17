@@ -25,7 +25,7 @@ from post_eval_common import run_post_eval
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = SCRIPT_DIR.parents[1]
 
 
 def resolve_repo_path(path):
