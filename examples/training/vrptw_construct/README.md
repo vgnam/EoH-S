@@ -11,10 +11,19 @@ constraints; the objective is to minimize the total traveled distance. Reported
 scores are the gap vs a nearest-neighbor baseline: `(baseline - cost) / baseline`
 (0 = NN, positive = better than NN).
 
-Train on the IID train datasets (train_datasets/size_50.pkl and
-train_datasets/size_100.pkl, 16 instances each) and post-evaluate on the ID
-test datasets (test_datasets/size_*.pkl) and OOD datasets
-(ood_test_datasets/mixture/size_*.pkl) for ALL sizes 20/50/100/200.
+Train on the IID train datasets — 4 coordinate families (uniform, cluster,
+bezier, grid_holes) × 32 instances each = 128 instances, fixed 30 customers
+(train_datasets/family_<family>.pkl). Post-evaluate on the ID test datasets
+(test_datasets/size_20/50/100.pkl) and the OOD datasets
+(ood_test_datasets/mixture/size_20/50/100.pkl), 128 instances per size each
+(384 total per split).
+
+ID instances are balanced across the same 4 train families (32 per family per
+size); OOD instances are gaussian mixtures with random Dirichlet weights
+(mixed rings/spiral/gaussian-blob/line structures), so they are out-of-family
+relative to training. Regenerate with:
+
+    py -3 scripts/generate_ovrp_vrptw_datasets.py vrptw
 
 Post-eval uses the whole population for EoH/EoHS and the top-10 train-score
 individuals for MCTS_AHD. OW-CAHD synthesizes new coordinate regimes and

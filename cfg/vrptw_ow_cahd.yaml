@@ -10,7 +10,7 @@
 logger:
   root: logs
 stream:
-  datasets: [code/llm4ad/task/optimization/vrptw_construct/train_datasets/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/train_datasets/size_100.pkl]
+  datasets: [code/llm4ad/task/optimization/vrptw_construct/train_datasets/family_uniform.pkl, code/llm4ad/task/optimization/vrptw_construct/train_datasets/family_cluster.pkl, code/llm4ad/task/optimization/vrptw_construct/train_datasets/family_bezier.pkl, code/llm4ad/task/optimization/vrptw_construct/train_datasets/family_grid_holes.pkl]
   seed: 2026
   batch_size: 16
   shuffle: true
@@ -40,10 +40,10 @@ method:
   max_sample_nums: 500
   synthesis_context: "Vehicle routing problem with time windows (VRPTW, also called CVRPTW when capacities are included). Each generated instance must be a numpy array of node coordinates with shape (n_cities, 2), n_cities between 21 and 201; the depot is row 0 and the remaining rows are customers. Coordinates must be finite and lie roughly in [0, 1]. Return only the coordinates — the runner deterministically derives customer demands, vehicle capacity, service times, time windows, and the distance matrix from them."
 hidden_test:
-  id_datasets: [code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_20.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_100.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_200.pkl]
-  ood_datasets: [code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_20.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_100.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_200.pkl]
-  sizes: [20, 50, 100, 200]
-  instances_per_size: 64
-  eval_instances: 32
+  id_datasets: [code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_20.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_100.pkl]
+  ood_datasets: [code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_20.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_100.pkl]
+  sizes: [20, 50, 100]
+  instances_per_size: 128
+  eval_instances: 128
   function_timeout_seconds: 300
   speed_probe_timeout_seconds: 0
