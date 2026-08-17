@@ -23,6 +23,8 @@ Post-eval population policy:
 | bp_2d_construct | bp_2d_construct | size 50 (32) | size 50/100/200/500 (32/size) |
 | admissible_set | admissible_set | n15w10 (32) | id n15w10 (32) + ood n12w7/n21w15/n24w17 (1/family) |
 | online_bin_packing_set | obp_set | size 500 (64) | size 200/500/1000 (128/size) |
+| ovrp_construct | ovrp_construct | size 50/100 (16 each) | size 20/50/100/200 (ID 16, OOD 32/size) |
+| vrptw_construct | vrptw_construct | size 50/100 (16 each) | size 20/50/100/200 (ID 16, OOD 32/size) |
 
 Train size / instance caps are tunable in cfg/<task>_<method>.yaml
 (train_datasets, train_instances*, eval_instances, *_eval_instances).

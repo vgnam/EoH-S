@@ -1,0 +1,34 @@
+﻿llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: "https://opencode.ai/zen/go/v1"
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: mistral-large-latest
+  timeout: 300
+  temperature: 0.9
+  max_retries: 5
+task:
+  timeout_seconds: 120
+  train_datasets: [code/llm4ad/task/optimization/vrptw_construct/train_datasets/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/train_datasets/size_100.pkl]
+  train_instances_per_dataset: 16
+  return_list: true
+hidden_test:
+  id_datasets: [code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_20.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_100.pkl, code/llm4ad/task/optimization/vrptw_construct/test_datasets/size_200.pkl]
+  ood_datasets: [code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_20.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_50.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_100.pkl, code/llm4ad/task/optimization/vrptw_construct/ood_test_datasets/mixture/size_200.pkl]
+  sizes: [20, 50, 100, 200]
+  instances_per_size: 64
+  eval_instances: 32
+  function_timeout_seconds: 300
+  speed_probe_timeout_seconds: 0
+profiler:
+  log_dir: examples/training/vrptw_construct/logs/mcts_ahd
+  log_style: simple
+method:
+  max_sample_nums: 500
+  init_size: 10
+  pop_size: 10
+  num_samplers: 4
+  num_evaluators: 4
+  alpha: 0.5
+  lambda_0: 0.1
+  debug_mode: false

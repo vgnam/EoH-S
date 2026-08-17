@@ -82,6 +82,7 @@ def run_construct_training(
         model=os.environ.get(llm_cfg["model_env"], llm_cfg["model_default"]),
         timeout=llm_cfg["timeout"],
         temperature=llm_cfg.get("temperature"),
+        max_retries=llm_cfg.get("max_retries"),
     )
     task = task_builder(task_cfg)
     profiler = profiler_factory(profiler_cfg)

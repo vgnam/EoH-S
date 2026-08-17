@@ -24,13 +24,15 @@ TRAINING_DIR = REPO_ROOT / "examples" / "training"
 sys.path.insert(0, str(REPO_ROOT / "code"))
 sys.path.insert(0, str(TRAINING_DIR))
 
-TASKS = ("bp1d", "bp2d", "admissible", "obp")
+TASKS = ("bp1d", "bp2d", "admissible", "obp", "ovrp", "vrptw")
 METHODS = ("eoh", "eohs", "mcts_ahd", "ow_cahd")
 TASK_DIRS = {
     "bp1d": "bp_1d_construct",
     "bp2d": "bp_2d_construct",
     "admissible": "admissible_set",
     "obp": "obp_set",
+    "ovrp": "ovrp_construct",
+    "vrptw": "vrptw_construct",
 }
 
 FAILURES = []
@@ -100,6 +102,8 @@ def check_template_exec():
         "llm4ad.task.optimization.bp_2d_construct.template",
         "llm4ad.task.optimization.admissible_set.template",
         "llm4ad.task.optimization.online_bin_packing_set.template",
+        "llm4ad.task.optimization.ovrp_construct.template",
+        "llm4ad.task.optimization.vrptw_construct.template",
     ):
         mod = importlib.import_module(mod_path)
         func = TextFunctionProgramConverter.text_to_function(mod.template_program)
@@ -182,12 +186,16 @@ def check_ow_adapters(task):
         "bp2d": "bp2d_descriptor",
         "admissible": "asp_descriptor",
         "obp": "obp_descriptor",
+        "ovrp": "ovrp_descriptor",
+        "vrptw": "vrptw_descriptor",
     }[task]
     validity_name = {
         "bp1d": "is_valid_bp1d_instance",
         "bp2d": "is_valid_bp2d_instance",
         "admissible": "is_valid_asp_instance",
         "obp": "is_valid_obp_instance",
+        "ovrp": "is_valid_ovrp_instance",
+        "vrptw": "is_valid_vrptw_instance",
     }[task]
     descriptor = getattr(common, descriptor_name)
     validity = getattr(common, validity_name)

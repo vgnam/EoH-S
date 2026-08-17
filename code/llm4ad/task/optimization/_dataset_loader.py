@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pickle
-from numbers import Integral
 from pathlib import Path
 
 
@@ -29,18 +28,11 @@ def _load_instances(path: Path):
 
 def _validate_instances(instances, path):
     for index, instance in enumerate(instances):
-        if not isinstance(instance, (list, tuple)) or len(instance) != 2:
+        if not isinstance(instance, (list, tuple)) or len(instance) < 2:
             raise ValueError(
-                f"Instance {index} in {path} must be a 2-tuple "
-                "(items, container-size)."
+                f"Instance {index} in {path} must be a tuple/list with at least "
+                "two fields (task-specific layout)."
             )
-        items, container = instance
-        if not isinstance(items, (list, tuple)) or not items:
-            raise ValueError(f"Instance {index} in {path} has invalid items.")
-        if not isinstance(container, Integral) and not (
-            isinstance(container, (list, tuple)) and len(container) == 2
-        ):
-            raise ValueError(f"Instance {index} in {path} has an invalid container size.")
     return instances
 
 
@@ -51,7 +43,14 @@ def load_dataset_file(
     size=None,
     **kwargs,
 ):
-    """Load BP1D/BP2D datasets from the task's train, ID, or OOD directories."""
+    """Load task datasets from the task's train, ID, or OOD directories.
+
+    Datasets are plain pickled lists of instances. Instance layouts are
+    task-specific — BP1D/BP2D use (items, container) tuples while
+    OVRP/VRPTW use (coordinates, distance_matrix, demands, ...) tuples —
+    so only coarse structure (a non-empty list of tuple/list instances)
+    is validated here; tasks interpret their own layouts.
+    """
     task_dir = Path(task_dir)
     if filename is None:
         if split not in _SPLIT_DIRS:

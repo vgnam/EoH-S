@@ -10,11 +10,16 @@ from llm4ad.base import LLM
 class OpenAIAPI(LLM):
     _REASONING_PARAMETERS = frozenset(("reasoning", "reasoning_effort"))
 
-    def __init__(self, base_url: str, api_key: str, model: str, timeout=60, temperature=None, **kwargs):
+    def __init__(self, base_url: str, api_key: str, model: str, timeout=60, temperature=None, max_retries=None, **kwargs):
         super().__init__()
         self._model = model
         self._temperature = temperature
-        self._client = openai.OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, **kwargs)
+        client_kwargs = dict(kwargs)
+        if max_retries is not None:
+            client_kwargs["max_retries"] = int(max_retries)
+        self._client = openai.OpenAI(
+            api_key=api_key, base_url=base_url, timeout=timeout, **client_kwargs
+        )
         self._usage_lock = Lock()
         self._token_usage = {
             "requests": 0,
