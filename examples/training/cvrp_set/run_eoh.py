@@ -7,8 +7,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
 sys.path.insert(0, str(REPO_ROOT / "code"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "training"))
 
 import yaml
+
+from post_eval_common import load_env_file
 
 from llm4ad.method.eoh import EoH, EoHProfiler
 from llm4ad.task.optimization.cvrp_construct_set import CVRPSEvaluation
@@ -48,6 +51,7 @@ def save_final_population(log_dir, population):
 
 
 def main():
+    load_env_file()
     cfg = load_config()
     llm_cfg = cfg["llm"]
     task_cfg = cfg["task"]

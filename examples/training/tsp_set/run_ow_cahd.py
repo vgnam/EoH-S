@@ -15,8 +15,11 @@ LOCAL_PYTHON_PACKAGES = REPO_ROOT / ".python_packages"
 if LOCAL_PYTHON_PACKAGES.exists():
     sys.path.insert(0, str(LOCAL_PYTHON_PACKAGES))
 sys.path.insert(0, str(REPO_ROOT / "code"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "training"))
 
 import numpy as np
+
+from post_eval_common import load_env_file
 import yaml
 
 from llm4ad.base import Evaluation
@@ -439,6 +442,7 @@ class TSPInMemoryEvaluation(Evaluation):
 
 
 def main():
+    load_env_file()
     cfg = load_config("ow_cahd.yaml")
     llm_cfg = cfg["llm"]
     method_cfg = cfg["method"]

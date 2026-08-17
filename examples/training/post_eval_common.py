@@ -14,12 +14,41 @@ each task common.py.
 
 import csv
 import json
+import os
 import pickle
 from pathlib import Path
 
 import numpy as np
 
 from llm4ad.base import SecureEvaluator, TextFunctionProgramConverter
+
+
+def load_env_file(path=None):
+    """Load KEY=VALUE pairs from a .env file into os.environ (no dependency).
+
+    Values already present in the environment are NOT overwritten, so
+    explicit shell variables keep precedence. Defaults to <repo root>/.env.
+    """
+    if path is None:
+        path = Path(__file__).resolve().parents[2] / ".env"
+    path = Path(path)
+    if not path.exists():
+        return False
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+    return True
+
+
+# Every construct run script imports this module, so loading the local .env
+# here makes API credentials available without extra setup.
+load_env_file()
 
 
 def resolve_repo_path(path):

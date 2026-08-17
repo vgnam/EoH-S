@@ -29,11 +29,18 @@ Train size / instance caps are tunable in cfg/<task>_<method>.yaml
 
 ## Running
 
-Python 3.10 recommended (numpy 1.26 + numba 0.59). Set OPENAI_API_KEY and
-optionally OPENAI_BASE_URL / OPENAI_MODEL, then from the repository root:
+Python 3.10 recommended (numpy 1.26 + numba 0.59). Put your API key in the
+repo-root .env file (auto-loaded by every run script; not committed):
 
-    py -3 examples\training\<task_dir>\run_<method>.py
+    OPENAI_API_KEY=sk-...
+    OPENAI_BASE_URL=https://opencode.ai/zen/go/v1
+    OPENAI_MODEL=deepseek-v4-flash
+
+Note: use the py -3.10 launcher (py -3 resolves to Python 3.11 whose numpy
+2.x breaks numba). From the repository root:
+
+    py -3.10 examples\training\<task_dir>\run_<method>.py
 
 ## Verification (no LLM needed)
 
-    py -3 scripts\verify_matrix.py
+    py -3.10 scripts\verify_matrix.py

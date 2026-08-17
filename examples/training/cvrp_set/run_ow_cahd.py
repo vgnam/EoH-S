@@ -10,8 +10,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
 sys.path.insert(0, str(REPO_ROOT / "code"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "training"))
 
 import numpy as np
+
+from post_eval_common import load_env_file
 import yaml
 
 from llm4ad.method.eohs import EoHSProfiler
@@ -174,6 +177,7 @@ def hidden_dataset_paths(hidden_test_cfg):
 
 
 def main():
+    load_env_file()
     cfg = load_config()
     llm_cfg = cfg["llm"]
     method_cfg = dict(cfg["method"])
