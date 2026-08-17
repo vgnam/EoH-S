@@ -59,7 +59,9 @@ def main():
         base_url=os.environ.get(llm_cfg["base_url_env"], llm_cfg["base_url_default"]),
         api_key=os.environ[llm_cfg["api_key_env"]],
         model=os.environ.get(llm_cfg["model_env"], llm_cfg["model_default"]),
-        timeout=llm_cfg["timeout"])
+        timeout=llm_cfg["timeout"],
+        temperature=llm_cfg.get("temperature"),
+    )
 
     task = TSPSEvaluation(
         timeout_seconds=task_cfg["timeout_seconds"],

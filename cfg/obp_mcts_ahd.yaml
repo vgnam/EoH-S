@@ -5,6 +5,7 @@ llm:
   model_env: OPENAI_MODEL
   model_default: deepseek-v4-flash
   timeout: 60
+  temperature: 0.9
 task:
   timeout_seconds: 120
   train_datasets: [datasets/obp/dataset_obp_train_size500.pkl]

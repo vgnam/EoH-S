@@ -5,6 +5,7 @@ llm:
   model_env: OPENAI_MODEL
   model_default: deepseek-v4-flash
   timeout: 60
+  temperature: 0.9
 logger:
   root: examples/training/bp_2d_construct/logs/ow_cahd
 stream:

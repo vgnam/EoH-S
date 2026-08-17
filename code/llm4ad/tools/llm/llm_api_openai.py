@@ -10,9 +10,10 @@ from llm4ad.base import LLM
 class OpenAIAPI(LLM):
     _REASONING_PARAMETERS = frozenset(("reasoning", "reasoning_effort"))
 
-    def __init__(self, base_url: str, api_key: str, model: str, timeout=60, **kwargs):
+    def __init__(self, base_url: str, api_key: str, model: str, timeout=60, temperature=None, **kwargs):
         super().__init__()
         self._model = model
+        self._temperature = temperature
         self._client = openai.OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, **kwargs)
         self._usage_lock = Lock()
         self._token_usage = {
@@ -64,6 +65,9 @@ class OpenAIAPI(LLM):
     def draw_sample(self, prompt: str | Any, *args, **kwargs) -> str:
         if isinstance(prompt, str):
             prompt = [{'role': 'user', 'content': prompt.strip()}]
+        # Apply the configured sampling temperature unless the caller overrides it.
+        if "temperature" not in kwargs and self._temperature is not None:
+            kwargs["temperature"] = self._temperature
         request_kwargs = self._without_reasoning(kwargs)
         response = self._client.chat.completions.create(
             model=self._model,

@@ -5,6 +5,7 @@ llm:
   model_env: OPENAI_MODEL
   model_default: deepseek-v4-flash
   timeout: 60
+  temperature: 0.9
 task:
   timeout_seconds: 600
   train_datasets: [code/llm4ad/task/optimization/bp_1d_construct/train_datasets/size_100.pkl]
