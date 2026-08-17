@@ -12,8 +12,9 @@ def determine_next_assignment(remaining_items: List[int], remaining_capacities: 
 
     Returns:
         A tuple containing:
-        - The selected item to pack.
+        - The selected item's WEIGHT (the actual int value from remaining_items).
         - The selected bin to pack the item into (or None if no feasible bin is found).
+    Note: return the item weight value itself, not its positional index.
     """
     # Iterate through items in their original order
     for item in remaining_items:

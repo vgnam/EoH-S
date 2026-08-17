@@ -164,11 +164,26 @@ class BP1DEvaluation(Evaluation):
             remaining_capacities_copy = copy.deepcopy(remaining_capacities)
             selected_item, selected_bin = eva(remaining_items_copy, remaining_capacities_copy)
 
-            if selected_bin is not None:
+            # The LLM may return the selected item as its value or as an index
+            # into remaining_items. Resolve either form to the item value so
+            # packing/removal below is always consistent.
+            if selected_item in remaining_items:
+                item_value = selected_item
+            elif (
+                isinstance(selected_item, int)
+                and not isinstance(selected_item, bool)
+                and 0 <= selected_item < len(remaining_items)
+            ):
+                item_value = remaining_items[selected_item]
+            else:
+                selected_item = None
+                item_value = None
+
+            if selected_bin is not None and item_value is not None:
                 # Add the selected item to the selected bin
-                bins[selected_bin].append(selected_item)
+                bins[selected_bin].append(item_value)
                 # Update the remaining capacity of the selected bin
-                remaining_capacities[selected_bin] -= selected_item
+                remaining_capacities[selected_bin] -= item_value
             else:
                 # If no feasible bin is found, stop packing (no more bins available)
                 break
@@ -177,7 +192,7 @@ class BP1DEvaluation(Evaluation):
                 return None
 
             # Remove the selected item from the remaining items
-            remaining_items.remove(selected_item)
+            remaining_items.remove(item_value)
 
         if len(remaining_items) > 0:
             return None
