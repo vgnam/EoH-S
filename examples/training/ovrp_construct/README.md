@@ -6,7 +6,9 @@ The construction task is: at each step, given the current node, remaining
 capacity, unvisited nodes, demands, and the distance matrix, `select_next_node`
 picks the next customer to serve (or the depot to start a new route). Routes
 are open: the last customer of a vehicle does not return to the depot. The
-objective is to minimize the total traveled distance.
+objective is to minimize the total traveled distance; reported scores are the
+gap vs a nearest-neighbor baseline: `(baseline - cost) / baseline` (0 = NN,
+positive = better than NN).
 
 Train on the IID train datasets (train_datasets/size_50.pkl and
 train_datasets/size_100.pkl, 16 instances each) and post-evaluate on the ID

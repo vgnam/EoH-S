@@ -90,6 +90,31 @@ class OVRPEvaluation(Evaluation):
             getData = GetData(self.n_instance, self.problem_size)
             self._datasets = getData.generate_instances()
 
+        self._baselines = self._compute_nn_baselines()
+
+    def _nearest_neighbor_heuristic(self, current_node, depot, feasible_unvisited_nodes,
+                                    rest_capacity, demands, distance_matrix):
+        """Baseline: greedily pick the closest feasible node to the current node."""
+        if feasible_unvisited_nodes is None or len(feasible_unvisited_nodes) == 0:
+            return depot
+        candidates = np.asarray(feasible_unvisited_nodes, dtype=int)
+        distances = distance_matrix[int(current_node)][candidates]
+        return int(candidates[np.argmin(distances)])
+
+    def _compute_nn_baselines(self):
+        """Nearest-neighbor total distance for each instance (score baseline)."""
+        baselines = []
+        for instance, distance_matrix, demands, vehicle_capacity in self._datasets[:self.n_instance]:
+            route = self.route_construct(
+                distance_matrix, demands, vehicle_capacity, self._nearest_neighbor_heuristic
+            )
+            if route is None:
+                baselines.append(None)
+                continue
+            cost = self.tour_cost(instance, route)
+            baselines.append(float(cost) if np.isfinite(cost) and cost > 0 else None)
+        return baselines
+
     def plot_solution(self, instance: np.ndarray, route: list, demands: list, vehicle_capacity: int):
         """
         Plot the solution of the Open Vehicle Routing Problem (Open VRP).
@@ -212,14 +237,17 @@ class OVRPEvaluation(Evaluation):
     def evaluate(self, heuristic):
         scores = []
 
-        for instance, distance_matrix, demands, vehicle_capacity in self._datasets[:self.n_instance]:
+        for index, (instance, distance_matrix, demands, vehicle_capacity) in enumerate(self._datasets[:self.n_instance]):
             route = self.route_construct(distance_matrix, demands, vehicle_capacity, heuristic)
             if route is None:
                 return None
             LLM_dis = self.tour_cost(instance, route)
             if not np.isfinite(LLM_dis):
                 return None
-            scores.append(-LLM_dis)
+            baseline = self._baselines[index]
+            if baseline is None:
+                return None
+            scores.append((baseline - LLM_dis) / baseline)
 
         if not scores:
             return None

@@ -7,7 +7,9 @@ The construction task is: at each step, given the current node, remaining
 capacity, current time, unvisited nodes, demands, the distance matrix, and the
 time windows, `select_next_node` picks the next customer to serve (or the
 depot to start a new route). Routes must respect capacity and time-window
-constraints; the objective is to minimize the total traveled distance.
+constraints; the objective is to minimize the total traveled distance. Reported
+scores are the gap vs a nearest-neighbor baseline: `(baseline - cost) / baseline`
+(0 = NN, positive = better than NN).
 
 Train on the IID train datasets (train_datasets/size_50.pkl and
 train_datasets/size_100.pkl, 16 instances each) and post-evaluate on the ID
