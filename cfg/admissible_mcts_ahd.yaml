@@ -1,4 +1,4 @@
-llm:
+﻿llm:
   base_url_env: OPENAI_BASE_URL
   base_url_default: "https://opencode.ai/zen/go/v1"
   api_key_env: OPENAI_API_KEY
@@ -22,7 +22,7 @@ hidden_test:
   function_timeout_seconds: 21600
   speed_probe_timeout_seconds: 0
 profiler:
-  log_dir: examples/training/admissible_set/logs/mcts_ahd
+  log_dir: logs/admissible/mcts_ahd
   log_style: simple
 method:
   max_sample_nums: 500

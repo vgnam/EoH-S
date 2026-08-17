@@ -17,4 +17,4 @@ the repository root (Python 3.10 recommended):
 
 Per run, the script writes run_config.json, token_usage.json, and one
 post_eval_hidden_<stem>.csv (+ .json) per hidden ID/OOD dataset into
-examples/training/bp_2d_construct/logs/<method>.
+logs/bp2d/<method>/&lt;timestamp&gt;.

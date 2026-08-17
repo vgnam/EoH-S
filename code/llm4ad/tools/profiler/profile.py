@@ -77,9 +77,7 @@ class ProfilerBase:
         if create_random_path:
             self._log_dir = os.path.join(
                 log_dir,
-                self.__class__._result_folder + '_' +
-                self._evaluation_name + '_' +
-                self._method_name
+                self.__class__._result_folder,
             )
         else:
             self._log_dir = log_dir

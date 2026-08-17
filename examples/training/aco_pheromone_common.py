@@ -315,7 +315,7 @@ def function_record(function: Function, rank: int) -> dict[str, Any]:
 class ACORunLogger:
     def __init__(self, root: str | Path, problem: str, method: str):
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = resolve_repo_path(root) / f"{stamp}_{problem}_aco_{method}"
+        self.log_dir = resolve_repo_path(root) / problem / f"aco_{method}" / stamp
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.history_jsonl = self.log_dir / "history.jsonl"
         self.history_csv = self.log_dir / "history.csv"

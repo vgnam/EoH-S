@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     method = FunSearch(
         llm=llm,
-        profiler=ProfilerBase(log_dir='logs/funsearch', log_style='simple'),
+        profiler=ProfilerBase(log_dir='logs/obp/funsearch', log_style='simple'),
         evaluation=task,
         max_sample_nums=2000,
         num_samplers=4,

@@ -19,7 +19,7 @@ from the repository root (Python 3.10 recommended):
 
 Per run, the script writes run_config.json, token_usage.json, and one
 post_eval_hidden_<id|ood>_size<size>.csv (+ .json) per hidden dataset into
-the configured log directory (examples/training/obp_set/logs/<method>).
+the configured log directory (logs/obp/<method>/&lt;timestamp&gt;).
 
 See datasets/obp/README.md for the ID/OOD split definitions and the command
 used to regenerate all data files.

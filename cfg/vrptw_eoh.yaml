@@ -21,7 +21,7 @@ hidden_test:
   function_timeout_seconds: 300
   speed_probe_timeout_seconds: 0
 profiler:
-  log_dir: examples/training/vrptw_construct/logs/eoh
+  log_dir: logs/vrptw/eoh
   log_style: simple
 method:
   max_sample_nums: 500

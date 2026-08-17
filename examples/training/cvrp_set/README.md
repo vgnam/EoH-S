@@ -18,4 +18,4 @@ py -3 examples\training\cvrp_set\run_ow_cahd.py
 ```
 
 Configuration lives in `cfg/cvrp_eohs.yaml` and `cfg/cvrp_ow_cahd.yaml`.
-Results are written below `examples/training/cvrp_set/logs/`.
+Results are written below `logs/cvrp/<method>/&lt;timestamp&gt;/`.

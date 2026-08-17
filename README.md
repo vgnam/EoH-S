@@ -405,7 +405,7 @@ def main():
         return_list=True)
 
     method = EoHS(llm=llm,
-                 profiler=EoHSProfiler(log_dir='logs/eohs', log_style='simple'),
+                 profiler=EoHSProfiler(log_dir='logs/tsp/eohs', log_style='simple'),
                  evaluation=task,
                  max_sample_nums=2000,
                  max_generations=1000,

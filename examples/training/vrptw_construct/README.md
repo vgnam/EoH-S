@@ -32,4 +32,4 @@ the repository root (Python 3.10 recommended):
 
 Per run, the script writes run_config.json, token_usage.json, and one
 post_eval_hidden_<stem>.csv (+ .json) per hidden ID/OOD dataset into
-examples/training/vrptw_construct/logs/<method>.
+logs/vrptw/<method>/&lt;timestamp&gt;.

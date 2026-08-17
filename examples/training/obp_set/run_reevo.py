@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     method = ReEvo(
         llm=llm,
-        profiler=ReEvoProfiler(log_dir='logs/reevo', log_style='complex'),
+        profiler=ReEvoProfiler(log_dir='logs/obp/reevo', log_style='complex'),
         evaluation=task,
         max_sample_nums=2000,
         pop_size=10,

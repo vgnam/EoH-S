@@ -1,4 +1,4 @@
-llm:
+﻿llm:
   base_url_env: OPENAI_BASE_URL
   base_url_default: "https://opencode.ai/zen/go/v1"
   api_key_env: OPENAI_API_KEY
@@ -7,7 +7,7 @@ llm:
   timeout: 60
   temperature: 0.9
 logger:
-  root: examples/training/bp_2d_construct/logs/ow_cahd
+  root: logs
 stream:
   datasets: [code/llm4ad/task/optimization/bp_2d_construct/train_datasets/size_50.pkl]
   seed: 2026

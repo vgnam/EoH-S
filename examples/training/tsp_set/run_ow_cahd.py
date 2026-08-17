@@ -269,9 +269,9 @@ def function_record(function, rank):
 
 
 class OWCAHDRunLogger:
-    def __init__(self, root="logs/ow_cahd"):
+    def __init__(self, root="logs", method="ow_cahd"):
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = Path(root) / f"{stamp}_tsp_ow_cahd"
+        self.log_dir = Path(root) / "tsp" / method / stamp
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.history_jsonl = self.log_dir / "history.jsonl"
         self.history_csv = self.log_dir / "history.csv"
@@ -460,7 +460,7 @@ def main():
     )
 
     config = OWCAHDConfig(**method_cfg)
-    logger = OWCAHDRunLogger(root=cfg["logger"]["root"])
+    logger = OWCAHDRunLogger(root=resolve_repo_path(cfg["logger"]["root"]))
     logger.write_config(config, stream_config, hidden_test_config)
 
     def round_profiler(round_id):

@@ -1,4 +1,4 @@
-llm:
+﻿llm:
   base_url_env: OPENAI_BASE_URL
   base_url_default: https://opencode.ai/zen/go/v1
   api_key_env: OPENAI_API_KEY
@@ -8,7 +8,7 @@ llm:
   temperature: 0.9
 
 logger:
-  root: logs/tsp_aco/ow_cahd
+  root: logs
 
 stream:
   # Use exactly one training dataset per experimental run.

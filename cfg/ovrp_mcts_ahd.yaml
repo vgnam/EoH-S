@@ -21,7 +21,7 @@ hidden_test:
   function_timeout_seconds: 300
   speed_probe_timeout_seconds: 0
 profiler:
-  log_dir: examples/training/ovrp_construct/logs/mcts_ahd
+  log_dir: logs/ovrp/mcts_ahd
   log_style: simple
 method:
   max_sample_nums: 500
