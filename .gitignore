@@ -15,6 +15,4 @@ results/open_world_tsp_surprise/
 # Local experiment snapshots and comparison artifacts.
 artifacts/
 
-# Local secrets
-.env
 
