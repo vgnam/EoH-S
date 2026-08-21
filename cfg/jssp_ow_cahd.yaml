@@ -1,0 +1,45 @@
+llm:
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: "https://opencode.ai/zen/go/v1"
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v4-flash
+  timeout: 60
+  temperature: 0.9
+logger: {root: logs}
+stream:
+  datasets: [code/llm4ad/task/optimization/jssp_construct/train_datasets/size_50.pkl]
+  seed: 2026
+  batch_size: 32
+  shuffle: true
+method:
+  portfolio_size: 10
+  min_sleep_per_regime: 4
+  novelty_alpha: 0.01
+  novelty_confirm_rounds: 2
+  skip_mmd_verification: true
+  auto_accept_regime: false
+  always_synthesize_regime: true
+  allow_bootstrap_fallback: true
+  llm_synthesis_examples: 4
+  llm_synthesis_min_successful_components: 1
+  covariance_reg: 0.0001
+  belief_floor: 0.02
+  max_generations: 8
+  pop_size: 10
+  num_samplers: 1
+  num_evaluators: 1
+  debug_mode: false
+  print_eohs_samples: true
+  sleep_instances_per_round: 8
+  fit_samples_per_regime: 16
+  llm_synthesis_mixture_components: 8
+  llm_synthesis_temperatures: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+  max_sample_nums: 300
+  synthesis_context: "JSSP instance: (positive integer processing-time matrix, n_jobs, n_machines), normally 20-200 jobs and 10 machines. Generate plain Python tuples with matching dimensions."
+hidden_test:
+  id_datasets: [code/llm4ad/task/optimization/jssp_construct/test_datasets/size_20.pkl, code/llm4ad/task/optimization/jssp_construct/test_datasets/size_50.pkl, code/llm4ad/task/optimization/jssp_construct/test_datasets/size_100.pkl, code/llm4ad/task/optimization/jssp_construct/test_datasets/size_200.pkl]
+  ood_datasets: [code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_20.pkl, code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_50.pkl, code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_100.pkl, code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_200.pkl]
+  sizes: [20, 50, 100, 200]
+  eval_instances: 32
+  function_timeout_seconds: 600

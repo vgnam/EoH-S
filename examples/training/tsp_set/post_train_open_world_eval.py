@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import itertools
 import json
@@ -561,8 +562,7 @@ def _evaluate_hidden_round(task):
     largest_size = int(np.max(instance_sizes))
     probe_indices = np.flatnonzero(instance_sizes == largest_size)[:1]
     probe_instances = [instances[int(index)] for index in probe_indices]
-    valid_rows = []
-    for function in portfolio:
+    def evaluate_function(function):
         try:
             if speed_probe_timeout_seconds is not None and speed_probe_timeout_seconds > 0:
                 probe_scores = _hidden_function_scores_with_timeout(
@@ -573,7 +573,7 @@ def _evaluate_hidden_round(task):
                     timeout_seconds=speed_probe_timeout_seconds,
                 )
                 if probe_scores is None:
-                    continue
+                    return None
             scores = _hidden_function_scores(
                 function,
                 instances,
@@ -588,8 +588,17 @@ def _evaluate_hidden_round(task):
             )
         except Exception:
             scores = None
-        if scores is not None:
-            valid_rows.append(scores)
+        return scores
+
+    # Each timed evaluation already runs in an isolated child process. Running
+    # portfolio members concurrently preserves the evaluation protocol while
+    # avoiding a worst-case timeout of len(portfolio) * timeout_seconds.
+    if function_timeout_seconds is not None and len(portfolio) > 1:
+        with ThreadPoolExecutor(max_workers=len(portfolio)) as executor:
+            evaluated_rows = list(executor.map(evaluate_function, portfolio))
+    else:
+        evaluated_rows = [evaluate_function(function) for function in portfolio]
+    valid_rows = [scores for scores in evaluated_rows if scores is not None]
     if not valid_rows:
         raise RuntimeError(f"No valid portfolio functions on hidden round {round_id}.")
 

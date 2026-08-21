@@ -25,6 +25,14 @@ Post-eval population policy:
 | online_bin_packing_set | obp_set | size 500 (64) | size 200/500/1000 (128/size) |
 | ovrp_construct | ovrp_construct | size 50/100 (16 each) | size 20/50/100/200 (ID 16, OOD 32/size) |
 | vrptw_construct | vrptw_construct | size 50/100 (16 each) | size 20/50/100/200 (ID 16, OOD 32/size) |
+| cflp_construct | cflp_construct | size 50 (16) | size 20/50/100/200 (ID 16, OOD 32/size) |
+| fssp_construct | fssp_construct | size 50 (16) | size 20/50/100/200 (ID 16, OOD 32/size) |
+| jssp_construct | jssp_construct | size 50 (16) | size 20/50/100/200 (ID 16, OOD 32/size) |
+| set_cover_construct | set_cover_construct | size 50 (10 feasible) | size 20/50/100/200 (feasible ID + OOD) |
+
+The upstream example directory calls `jssp_construct` from its FSSP runner.
+This matrix provides a separate permutation-flow-shop evaluator (`fssp`) and
+keeps the original operation-scheduling task under its package name (`jssp`).
 
 Train size / instance caps are tunable in cfg/<task>_<method>.yaml
 (train_datasets, train_instances*, eval_instances, *_eval_instances).

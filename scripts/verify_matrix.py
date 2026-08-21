@@ -12,6 +12,7 @@ Run: python scripts/verify_matrix.py
 import importlib
 import importlib.util
 import inspect
+import argparse
 import sys
 import traceback
 from pathlib import Path
@@ -24,7 +25,7 @@ TRAINING_DIR = REPO_ROOT / "examples" / "training"
 sys.path.insert(0, str(REPO_ROOT / "code"))
 sys.path.insert(0, str(TRAINING_DIR))
 
-TASKS = ("bp1d", "bp2d", "admissible", "obp", "ovrp", "vrptw")
+TASKS = ("bp1d", "bp2d", "admissible", "obp", "ovrp", "vrptw", "cflp", "fssp", "jssp", "scp")
 METHODS = ("eoh", "eohs", "mcts_ahd", "ow_cahd")
 TASK_DIRS = {
     "bp1d": "bp_1d_construct",
@@ -33,6 +34,10 @@ TASK_DIRS = {
     "obp": "obp_set",
     "ovrp": "ovrp_construct",
     "vrptw": "vrptw_construct",
+    "cflp": "cflp_construct",
+    "fssp": "fssp_construct",
+    "jssp": "jssp_construct",
+    "scp": "set_cover_construct",
 }
 
 FAILURES = []
@@ -104,6 +109,10 @@ def check_template_exec():
         "llm4ad.task.optimization.online_bin_packing_set.template",
         "llm4ad.task.optimization.ovrp_construct.template",
         "llm4ad.task.optimization.vrptw_construct.template",
+        "llm4ad.task.optimization.cflp_construct.template",
+        "llm4ad.task.optimization.fssp_construct.template",
+        "llm4ad.task.optimization.jssp_construct.template",
+        "llm4ad.task.optimization.set_cover_construct.template",
     ):
         mod = importlib.import_module(mod_path)
         func = TextFunctionProgramConverter.text_to_function(mod.template_program)
@@ -166,6 +175,10 @@ def check_hidden_eval(task):
         assert instances, f"{stem} empty"
         if task == "admissible" and stem == "ood":
             instances = [i for i in instances if i["dimension"] == 12][:1]
+        elif task == "scp":
+            # The legacy random ID generator did not guarantee coverability;
+            # the adapter filters infeasible records before applying its cap.
+            pass
         else:
             instances = instances[:1]
         evaluation = factory(instances, stem=stem)
@@ -188,6 +201,10 @@ def check_ow_adapters(task):
         "obp": "obp_descriptor",
         "ovrp": "ovrp_descriptor",
         "vrptw": "vrptw_descriptor",
+        "cflp": "cflp_descriptor",
+        "fssp": "fssp_descriptor",
+        "jssp": "jssp_descriptor",
+        "scp": "scp_descriptor",
     }[task]
     validity_name = {
         "bp1d": "is_valid_bp1d_instance",
@@ -196,6 +213,10 @@ def check_ow_adapters(task):
         "obp": "is_valid_obp_instance",
         "ovrp": "is_valid_ovrp_instance",
         "vrptw": "is_valid_vrptw_instance",
+        "cflp": "is_valid_cflp_instance",
+        "fssp": "is_valid_fssp_instance",
+        "jssp": "is_valid_jssp_instance",
+        "scp": "is_valid_scp_instance",
     }[task]
     descriptor = getattr(common, descriptor_name)
     validity = getattr(common, validity_name)
@@ -218,6 +239,19 @@ def check_run_scripts_compile():
 
 
 def main():
+    global TASKS
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--tasks",
+        help="Comma-separated task tags to verify (default: full matrix).",
+    )
+    args = parser.parse_args()
+    if args.tasks:
+        requested = tuple(item.strip() for item in args.tasks.split(",") if item.strip())
+        unknown = sorted(set(requested) - set(TASK_DIRS))
+        if unknown:
+            parser.error(f"unknown tasks: {', '.join(unknown)}")
+        TASKS = requested
     check("imports", check_imports)
     check("configs", check_configs)
     check("template exec", check_template_exec)

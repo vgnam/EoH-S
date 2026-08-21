@@ -1,0 +1,27 @@
+llm: &llm
+  base_url_env: OPENAI_BASE_URL
+  base_url_default: "https://opencode.ai/zen/go/v1"
+  api_key_env: OPENAI_API_KEY
+  model_env: OPENAI_MODEL
+  model_default: deepseek-v4-flash
+  timeout: 60
+  temperature: 0.9
+task:
+  timeout_seconds: 600
+  train_datasets: [code/llm4ad/task/optimization/jssp_construct/train_datasets/size_50.pkl]
+  train_instances_per_dataset: 32
+  return_list: true
+hidden_test: &hidden
+  id_datasets: [code/llm4ad/task/optimization/jssp_construct/test_datasets/size_20.pkl, code/llm4ad/task/optimization/jssp_construct/test_datasets/size_50.pkl, code/llm4ad/task/optimization/jssp_construct/test_datasets/size_100.pkl, code/llm4ad/task/optimization/jssp_construct/test_datasets/size_200.pkl]
+  ood_datasets: [code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_20.pkl, code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_50.pkl, code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_100.pkl, code/llm4ad/task/optimization/jssp_construct/ood_test_datasets/mixture/size_200.pkl]
+  sizes: [20, 50, 100, 200]
+  eval_instances: 32
+  function_timeout_seconds: 600
+profiler: {log_dir: logs/fssp/eoh, log_style: simple}
+method:
+  max_sample_nums: 500
+  max_generations: 1000
+  pop_size: 10
+  num_samplers: 4
+  num_evaluators: 4
+  debug_mode: false

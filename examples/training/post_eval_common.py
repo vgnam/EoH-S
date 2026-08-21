@@ -160,6 +160,7 @@ def post_eval_dataset(
         )
 
     evaluation = evaluation_factory(instances, stem=stem)
+    evaluated_instances = int(getattr(evaluation, "n_instance", len(instances)))
     rows = score_functions(functions, evaluation)
     valid_rows = [row for row in rows if row["scores"] is not None]
     if not valid_rows:
@@ -172,7 +173,7 @@ def post_eval_dataset(
         "method": method_label,
         "dataset": str(dataset_path),
         "stem": stem,
-        "n_instances": len(instances),
+        "n_instances": evaluated_instances,
         "n_functions": len(functions),
         "n_valid_functions": len(valid_rows),
         "best_function_index": best_row["index"],

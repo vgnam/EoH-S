@@ -35,6 +35,27 @@ def count_eohs_samples(log_dir):
 
 def load_completed_portfolios(log_dir, method, hidden_dataset):
     round_ids = [int(item["round_id"]) for item in hidden_dataset["rounds"]]
+    if method in {"eoh", "mcts_ahd"}:
+        if not (log_dir / "run_config.json").exists() or not (log_dir / "token_usage.json").exists():
+            raise ValueError(f"{method} run is incomplete: missing completion metadata.")
+        population_paths = sorted(
+            (log_dir / "population").glob("pop_*.json"),
+            key=lambda path: int(path.stem.split("_")[-1]),
+        )
+        if not population_paths:
+            raise FileNotFoundError(f"No final {method} population found.")
+        final_population = load_rows(population_paths[-1])
+        if method == "mcts_ahd":
+            final_population = sorted(
+                (function for function in final_population if function.score is not None),
+                key=lambda function: function.score,
+                reverse=True,
+            )[:10]
+        return (
+            {round_id: final_population for round_id in round_ids},
+            f"fixed final {'MCTS_AHD' if method == 'mcts_ahd' else 'EoH'} population",
+        )
+
     if method == "eohs":
         samples = count_eohs_samples(log_dir)
         if samples < 500:
@@ -78,7 +99,7 @@ def load_completed_portfolios(log_dir, method, hidden_dataset):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("method", choices=["eohs", "ow_cahd"])
+    parser.add_argument("method", choices=["eoh", "eohs", "mcts_ahd", "ow_cahd"])
     parser.add_argument("log_dir", type=Path)
     parser.add_argument("hidden_dataset", type=Path)
     parser.add_argument("--function-timeout-seconds", type=float, default=20.0)
