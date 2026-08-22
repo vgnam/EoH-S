@@ -2,7 +2,7 @@
 
 The CVRP pipeline mirrors the TSP protocol:
 
-- training: 32 instances for each of `uniform`, `cluster`, `bezier`, and `grid_holes`, with 30 customers;
+- training: 32 instances for each of `uniform`, `cluster`, `bezier`, and `grid_holes`, with a near-balanced mixture of 20, 50, and 100 customers;
 - hidden ID: 128 instances at each of 20, 50, and 100 customers, balanced across the four training families;
 - hidden OOD: 128 instances at each size, all from `mixed_structures`;
 - OOD component weights are sampled per instance from `Dirichlet(3.5, 2.5, 2.5, 1.5)` before multinomial customer allocation;
@@ -19,3 +19,9 @@ py -3 examples\training\cvrp_set\run_ow_cahd.py
 
 Configuration lives in `cfg/cvrp_eohs.yaml` and `cfg/cvrp_ow_cahd.yaml`.
 Results are written below `logs/cvrp/<method>/&lt;timestamp&gt;/`.
+
+Regenerate the mixed-size train datasets for all four routing tasks with:
+
+```powershell
+py -3.10 scripts\generate_mixed_size_routing_train.py
+```

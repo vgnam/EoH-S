@@ -40,9 +40,7 @@ def _load_pickle(path: Path) -> Any:
 def _routing_dataset_paths(problem: str, split: str, sizes: list[int] | None) -> list[Path]:
     dataset_dir = REPO_ROOT / "datasets" / problem
     if split == "train":
-        if sizes is not None and 30 not in sizes:
-            return []
-        return sorted(dataset_dir.glob(f"dataset_{problem}_train_fixed30_*_32.pkl"))
+        return sorted(dataset_dir.glob(f"dataset_{problem}_train_mixed_sizes_*_32.pkl"))
     selected_sizes = sizes or list(ROUTING_SIZES)
     return [
         dataset_dir / f"dataset_{problem}_hidden_{split}_size{size}.pkl"

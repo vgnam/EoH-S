@@ -51,9 +51,9 @@ py -3 examples\baselines\aco\run_aco.py `
   --problem bpp --split all --sizes 200 500 1000 --max-instances 0
 ```
 
-`--split all` includes train, ID, and OOD. Routing train data has fixed size 30,
-so use `--sizes 30` (or omit `--sizes`) when selecting it. By default the runner
-uses the first 16 instances per dataset, 3 seeds, 20 ants, and 100 iterations.
+`--split all` includes train, ID, and OOD. Routing train data is a mixture of
+sizes 20, 50, and 100. By default the runner uses the first 16 instances per
+dataset, 3 seeds, 20 ants, and 100 iterations.
 Set `--max-instances 0` for every instance.
 
 Each run writes a detailed JSON file and a flat CSV file under

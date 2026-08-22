@@ -13,7 +13,7 @@ logger:
 stream:
   # Use exactly one training dataset per experimental run.
   datasets:
-    - datasets/cvrp/dataset_cvrp_train_fixed30_uniform_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_uniform_32.pkl
   seed: 2026
   batch_size: 32
   shuffle: true

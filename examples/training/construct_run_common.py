@@ -18,6 +18,7 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import yaml
 
 from llm4ad.tools.llm.llm_api_openai import OpenAIAPI
@@ -41,10 +42,22 @@ def load_config(name):
 
 def select_top_k(population, top_k):
     """Select the best top_k functions by their training score."""
+    def scalar_score(function):
+        score = getattr(function, "score", None)
+        if score is None:
+            return None
+        values = np.asarray(score, dtype=float).ravel()
+        values = values[np.isfinite(values)]
+        return float(np.mean(values)) if len(values) else None
+
     scored = [
-        func for func in population if getattr(func, "score", None) is not None
+        (score, func)
+        for func in population
+        if (score := scalar_score(func)) is not None
     ]
-    return sorted(scored, key=lambda func: func.score, reverse=True)[: int(top_k)]
+    return [
+        func for _score, func in sorted(scored, key=lambda item: item[0], reverse=True)
+    ][: int(top_k)]
 
 
 def write_run_artifacts(log_dir, cfg, token_usage):
@@ -95,16 +108,18 @@ def run_construct_training(
     write_run_artifacts(log_dir, cfg, token_usage)
 
     final_population = method._population.population
+    report_top_k = int(post_eval_top_k or 10)
+    final_population = select_top_k(final_population, report_top_k)
     if post_eval_top_k is not None:
-        final_population = select_top_k(final_population, post_eval_top_k)
         print(
             f"Final {method_label} population: {len(final_population)} functions "
-            f"(top {post_eval_top_k} by training score); "
+            f"(top {report_top_k} by training score); "
             f"post-evaluating on hidden ID/OOD datasets."
         )
     else:
         print(
-            f"Final {method_label} population: {len(final_population)} functions; "
+            f"Final {method_label} population: {len(final_population)} functions "
+            f"(top {report_top_k} by training score); "
             f"post-evaluating on hidden ID/OOD datasets."
         )
     run_post_eval(

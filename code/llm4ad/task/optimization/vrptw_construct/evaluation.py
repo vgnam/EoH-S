@@ -114,7 +114,9 @@ class VRPTWEvaluation(Evaluation):
         current_node = 0
         current_time = 0
         route.append(current_node)
-        unvisited_nodes = set(range(1, self.problem_size + 1))  # Assuming node 0 is the depot
+        # Infer the customer count per instance so mixed-size datasets work.
+        problem_size = len(demands) - 1
+        unvisited_nodes = set(range(1, problem_size + 1))  # Assuming node 0 is the depot
         all_nodes = np.array(list(unvisited_nodes))
         feasible_unvisited_nodes = all_nodes
 
@@ -172,7 +174,7 @@ class VRPTWEvaluation(Evaluation):
                 self._nearest_neighbor_heuristic, instance, distance_matrix, demands,
                 vehicle_capacity, time_service, time_windows,
             )
-            if len(set(route)) != self.problem_size + 1:
+            if len(set(route)) != len(demands):
                 baselines.append(None)
                 continue
             cost = self.tour_cost(distance_matrix, route, time_service, time_windows)
@@ -212,7 +214,7 @@ class VRPTWEvaluation(Evaluation):
                 heuristic, instance, distance_matrix, demands, vehicle_capacity,
                 time_service, time_windows,
             )
-            if len(set(route)) != self.problem_size + 1:
+            if len(set(route)) != len(demands):
                 return None
 
             LLM_dis = self.tour_cost(distance_matrix, route, time_service, time_windows)

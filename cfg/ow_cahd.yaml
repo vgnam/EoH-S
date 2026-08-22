@@ -12,10 +12,10 @@ logger:
 
 stream:
   datasets:
-    - datasets/tsp/dataset_tsp_train_fixed30_uniform_32.pkl
-    - datasets/tsp/dataset_tsp_train_fixed30_cluster_32.pkl
-    - datasets/tsp/dataset_tsp_train_fixed30_bezier_32.pkl
-    - datasets/tsp/dataset_tsp_train_fixed30_grid_holes_32.pkl
+    - datasets/tsp/dataset_tsp_train_mixed_sizes_uniform_32.pkl
+    - datasets/tsp/dataset_tsp_train_mixed_sizes_cluster_32.pkl
+    - datasets/tsp/dataset_tsp_train_mixed_sizes_bezier_32.pkl
+    - datasets/tsp/dataset_tsp_train_mixed_sizes_grid_holes_32.pkl
   seed: 2026
   batch_size: 32
   shuffle: true
@@ -63,4 +63,7 @@ method:
     This is a constructive TSP task. Generate only coordinates in [0, 1].
     Each generated instance should be a numpy array or nested list with
     shape (n_cities, 2). The OW-CAHD runner will centrally recompute the
-    Euclidean distance matrix and LKH/elkai reference baseline.
+    Euclidean distance matrix and LKH/elkai reference baseline. Do not impose
+    a fixed city count, a closed list of city counts, or a hard maximum size.
+    Infer and extrapolate the size distribution from the observed wake
+    instances; instances returned in the same batch may have different sizes.

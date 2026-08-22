@@ -10,10 +10,10 @@
 task:
   timeout_seconds: 120
   datasets:
-    - datasets/cvrp/dataset_cvrp_train_fixed30_uniform_32.pkl
-    - datasets/cvrp/dataset_cvrp_train_fixed30_cluster_32.pkl
-    - datasets/cvrp/dataset_cvrp_train_fixed30_bezier_32.pkl
-    - datasets/cvrp/dataset_cvrp_train_fixed30_grid_holes_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_uniform_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_cluster_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_bezier_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_grid_holes_32.pkl
   return_list: true
 
 hidden_test:

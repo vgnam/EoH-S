@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import math
 import multiprocessing as mp
 import random
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +38,21 @@ def function_to_callable(function):
 def function_key(function):
     payload = f"{function.name}\n{str(function)}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def select_top_train(functions, top_k=10):
+    """Rank functions by scalar/mean training gap before hidden evaluation."""
+    scored = []
+    for function in functions:
+        score = getattr(function, "score", None)
+        if score is None:
+            continue
+        values = np.asarray(score, dtype=float).ravel()
+        values = values[np.isfinite(values)]
+        if len(values):
+            scored.append((float(np.mean(values)), function))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [function for _score, function in scored[: int(top_k)]]
 
 
 def deduplicate_functions(functions):
@@ -123,6 +139,24 @@ def utility_stats(scores):
     }
 
 
+def raw_objectives(gap_scores, reference_objectives):
+    gaps = np.asarray(gap_scores, dtype=float)
+    references = np.asarray(reference_objectives, dtype=float)
+    return references * (1.0 - gaps)
+
+
+def raw_stats(gap_scores, reference_objectives):
+    objectives = raw_objectives(gap_scores, reference_objectives)
+    references = np.asarray(reference_objectives, dtype=float)
+    return {
+        "raw_objective_mean": float(np.mean(objectives)),
+        "raw_objective_min": float(np.min(objectives)),
+        "raw_objective_max": float(np.max(objectives)),
+        "raw_objective_std": float(np.std(objectives)),
+        "reference_objective_mean": float(np.mean(references)),
+    }
+
+
 def _evaluate_hidden_round(task):
     hidden_round, portfolio_specs, seed, customer_sizes, timeout_seconds, probe_timeout = task
     round_id = int(hidden_round["round_id"])
@@ -130,8 +164,8 @@ def _evaluate_hidden_round(task):
     sizes = np.asarray([len(instance[0]) - 1 for instance in instances], dtype=int)
     largest_size = int(np.max(sizes))
     probe_index = int(np.flatnonzero(sizes == largest_size)[0])
-    valid_rows = []
-    for name, source in portfolio_specs:
+    def evaluate_function(spec):
+        name, source = spec
         function = HiddenEvalFunction(name, source)
         try:
             if probe_timeout is not None and probe_timeout > 0:
@@ -143,7 +177,7 @@ def _evaluate_hidden_round(task):
                     timeout_seconds=probe_timeout,
                 )
                 if probe is None:
-                    continue
+                    return None
             scores = hidden_function_scores_with_timeout(
                 function,
                 instances,
@@ -153,11 +187,22 @@ def _evaluate_hidden_round(task):
             )
         except Exception:
             scores = None
-        if scores is not None:
-            valid_rows.append(scores)
-    if not valid_rows:
+        return scores
+
+    if timeout_seconds is not None and len(portfolio_specs) > 1:
+        with ThreadPoolExecutor(max_workers=len(portfolio_specs)) as executor:
+            evaluated_rows = list(executor.map(evaluate_function, portfolio_specs))
+    else:
+        evaluated_rows = [evaluate_function(spec) for spec in portfolio_specs]
+    valid_top10_rows = [scores for scores in evaluated_rows[:10] if scores is not None]
+    if not valid_top10_rows:
         raise RuntimeError(f"No valid CVRP portfolio functions on hidden round {round_id}.")
-    best_scores = np.max(np.vstack(valid_rows), axis=0)
+    top1_scores = evaluated_rows[0]
+    top10_scores = np.max(np.vstack(valid_top10_rows), axis=0)
+    best_scores = top10_scores
+    reference_objectives = np.asarray(
+        [float(instance[4]) for instance in instances], dtype=float
+    )
     size_rows = []
     for size in customer_sizes:
         mask = sizes == size
@@ -169,11 +214,61 @@ def _evaluate_hidden_round(task):
                     "n_customers": int(size),
                     "hidden_instances": int(np.sum(mask)),
                     "portfolio_functions": len(portfolio_specs),
-                    "valid_portfolio_functions": len(valid_rows),
+                    "valid_portfolio_functions": len(valid_top10_rows),
                     **utility_stats(best_scores[mask]),
+                    **raw_stats(best_scores[mask], reference_objectives[mask]),
+                    "top1_gap_mean": (
+                        float(np.mean(top1_scores[mask]))
+                        if top1_scores is not None else None
+                    ),
+                    "top1_raw_mean": (
+                        float(np.mean(raw_objectives(
+                            top1_scores[mask], reference_objectives[mask]
+                        )))
+                        if top1_scores is not None else None
+                    ),
+                    "top10_gap_mean": float(np.mean(top10_scores[mask])),
+                    "top10_raw_mean": float(np.mean(raw_objectives(
+                        top10_scores[mask], reference_objectives[mask]
+                    ))),
                 }
             )
-    return size_rows
+    raw_round = {
+        "round_id": round_id,
+        "regime": hidden_round["regime"],
+        "instance_sizes": sizes.tolist(),
+        "functions": [
+            {
+                "index": index,
+                "name": name,
+                "function_sha256": hashlib.sha256(
+                    f"{name}\n{source}".encode("utf-8")
+                ).hexdigest(),
+                "valid": scores is not None,
+                "scores": scores.tolist() if scores is not None else None,
+                "gap_scores": scores.tolist() if scores is not None else None,
+                "raw_objectives": (
+                    raw_objectives(scores, reference_objectives).tolist()
+                    if scores is not None else None
+                ),
+            }
+            for index, ((name, source), scores) in enumerate(
+                zip(portfolio_specs, evaluated_rows)
+            )
+        ],
+        "top1_gap_scores": top1_scores.tolist() if top1_scores is not None else None,
+        "top1_raw_objectives": (
+            raw_objectives(top1_scores, reference_objectives).tolist()
+            if top1_scores is not None else None
+        ),
+        "top10_gap_scores": top10_scores.tolist(),
+        "top10_raw_objectives": raw_objectives(
+            top10_scores, reference_objectives
+        ).tolist(),
+        "oracle_scores": top10_scores.tolist(),
+        "reference_objectives": reference_objectives.tolist(),
+    }
+    return size_rows, raw_round
 
 
 def evaluate_hidden_portfolio_utility(
@@ -183,6 +278,7 @@ def evaluate_hidden_portfolio_utility(
     round_workers=1,
     function_timeout_seconds=None,
     speed_probe_timeout_seconds=None,
+    return_raw=False,
 ):
     customer_sizes = [int(size) for size in hidden_dataset["customer_sizes"]]
     tasks = []
@@ -205,10 +301,12 @@ def evaluate_hidden_portfolio_utility(
         )
     if round_workers > 1:
         with ProcessPoolExecutor(max_workers=min(round_workers, len(tasks))) as executor:
-            nested_rows = list(executor.map(_evaluate_hidden_round, tasks))
+            results = list(executor.map(_evaluate_hidden_round, tasks))
     else:
-        nested_rows = [_evaluate_hidden_round(task) for task in tasks]
-    return [row for rows in nested_rows for row in rows]
+        results = [_evaluate_hidden_round(task) for task in tasks]
+    size_rows = [row for rows, _raw_round in results for row in rows]
+    raw_rounds = [raw_round for _rows, raw_round in results]
+    return (size_rows, raw_rounds) if return_raw else size_rows
 
 
 def save_hidden_utility_post_eval(
@@ -223,14 +321,21 @@ def save_hidden_utility_post_eval(
     speed_probe_timeout_seconds=None,
     output_prefix="post_eval_hidden_utility",
 ):
-    del method_name, portfolio_protocol
     hidden_dataset = load_hidden_cvrp_dataset(hidden_dataset_path)
-    size_rows = evaluate_hidden_portfolio_utility(
+    size_rows, raw_rounds = evaluate_hidden_portfolio_utility(
         portfolios_by_round,
         hidden_dataset,
         round_workers=round_workers,
         function_timeout_seconds=function_timeout_seconds,
         speed_probe_timeout_seconds=speed_probe_timeout_seconds,
+        return_raw=True,
+    )
+    report_metrics = (
+        "top1_gap_mean",
+        "top1_raw_mean",
+        "top10_gap_mean",
+        "top10_raw_mean",
+        "reference_objective_mean",
     )
     rows = []
     for size in sorted({row["n_customers"] for row in size_rows}):
@@ -242,11 +347,16 @@ def save_hidden_utility_post_eval(
                 if row["n_customers"] == size and ((row["regime"] in ID_REGIMES) == is_id)
             ]
             count = sum(row["hidden_instances"] for row in selected)
-            output_row[f"{label}_utility_mean"] = (
-                sum(row["hidden_utility_mean"] * row["hidden_instances"] for row in selected) / count
-                if count
-                else None
-            )
+            for metric in report_metrics:
+                metric_rows = [row for row in selected if row.get(metric) is not None]
+                metric_count = sum(row["hidden_instances"] for row in metric_rows)
+                output_row[f"{label}_{metric}"] = (
+                    sum(row[metric] * row["hidden_instances"] for row in metric_rows)
+                    / metric_count
+                    if metric_count else None
+                )
+            # Backward-compatible alias: utility is the best-of-top-10 gap.
+            output_row[f"{label}_utility_mean"] = output_row[f"{label}_top10_gap_mean"]
         rows.append(output_row)
 
     output_path = Path(log_dir) / f"{output_prefix}.csv"
@@ -257,9 +367,14 @@ def save_hidden_utility_post_eval(
                 size = int(old_row["n_customers"])
                 target = merged.setdefault(
                     size,
-                    {"n_customers": size, "id_utility_mean": None, "ood_utility_mean": None},
+                    {"n_customers": size},
                 )
-                for field in ("id_utility_mean", "ood_utility_mean"):
+                fields = [
+                    f"{label}_{metric}"
+                    for label in ("id", "ood")
+                    for metric in report_metrics
+                ] + ["id_utility_mean", "ood_utility_mean"]
+                for field in fields:
                     if target.get(field) is None and old_row.get(field):
                         target[field] = float(old_row[field])
     rows = [merged[size] for size in sorted(merged)]
@@ -267,19 +382,46 @@ def save_hidden_utility_post_eval(
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["n_customers", "id_utility_mean", "ood_utility_mean"],
+            fieldnames=["n_customers"] + [
+                f"{label}_{metric}"
+                for label in ("id", "ood")
+                for metric in report_metrics
+            ] + ["id_utility_mean", "ood_utility_mean"],
         )
         writer.writeheader()
         writer.writerows(rows)
+
+    raw_path = Path(log_dir) / (
+        f"{output_prefix}_raw_{Path(hidden_dataset_path).stem}.json"
+    )
+    raw_payload = {
+        "format": "hidden-portfolio-objectives-v2",
+        "task": "cvrp",
+        "method": method_name,
+        "portfolio_protocol": portfolio_protocol,
+        "hidden_dataset": str(Path(hidden_dataset_path)),
+        "hidden_dataset_seed": int(hidden_dataset["seed"]),
+        "rounds": raw_rounds,
+    }
+    raw_path.write_text(json.dumps(raw_payload, indent=2), encoding="utf-8")
     return rows, output_path
 
 
 def print_hidden_utility_post_eval(method_name, rows, output_path):
-    print(f"\nPost-train CVRP hidden utility by size: {method_name}")
+    print(f"\nPost-train CVRP hidden raw objective and gap by size: {method_name}")
     for row in rows:
-        id_mean = row["id_utility_mean"]
-        ood_mean = row["ood_utility_mean"]
-        id_text = f"{id_mean:.6f}" if id_mean is not None else "n/a"
-        ood_text = f"{ood_mean:.6f}" if ood_mean is not None else "n/a"
-        print(f"n={row['n_customers']} id={id_text} ood={ood_text}")
-    print(f"CVRP hidden utility saved to {output_path}")
+        def metric_text(label):
+            values = [row.get(f"{label}_{metric}") for metric in (
+                "top1_raw_mean", "top1_gap_mean", "top10_raw_mean", "top10_gap_mean"
+            )]
+            if any(value is None for value in values):
+                return "n/a"
+            return (
+                f"top1(raw={values[0]:.6f}, gap={values[1]:+.6f}) "
+                f"top10(raw={values[2]:.6f}, gap={values[3]:+.6f})"
+            )
+        print(
+            f"n={row['n_customers']} id=[{metric_text('id')}] "
+            f"ood=[{metric_text('ood')}]"
+        )
+    print(f"CVRP hidden report saved to {output_path}")

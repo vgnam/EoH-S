@@ -12,10 +12,10 @@ logger:
 
 stream:
   datasets:
-    - datasets/cvrp/dataset_cvrp_train_fixed30_uniform_32.pkl
-    - datasets/cvrp/dataset_cvrp_train_fixed30_cluster_32.pkl
-    - datasets/cvrp/dataset_cvrp_train_fixed30_bezier_32.pkl
-    - datasets/cvrp/dataset_cvrp_train_fixed30_grid_holes_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_uniform_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_cluster_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_bezier_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_grid_holes_32.pkl
   seed: 2026
   batch_size: 32
   shuffle: true
@@ -63,3 +63,6 @@ method:
     the depot as row 0 and customers as the remaining rows, all in [0, 1].
     The CVRP runner deterministically generates customer demands and capacity,
     then centrally recomputes distances and the Clarke-Wright reference baseline.
+    Do not impose a fixed customer count, a closed list of customer counts, or
+    a hard maximum size. Infer and extrapolate the size distribution from the
+    observed wake instances; instances in one generated batch may differ in size.

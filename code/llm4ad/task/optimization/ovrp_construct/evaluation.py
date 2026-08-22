@@ -194,7 +194,10 @@ class OVRPEvaluation(Evaluation):
         current_node = 0
         route.append(current_node)
 
-        unvisited_nodes = set(range(1, self.problem_size))  # Assuming node 0 is the depot
+        # Mixed-size datasets cannot use the evaluator-wide problem_size,
+        # which only reflects the first loaded instance.
+        problem_size = len(demands)
+        unvisited_nodes = set(range(1, problem_size))  # Assuming node 0 is the depot
         all_nodes = np.array(list(unvisited_nodes))
         feasible_unvisited_nodes = all_nodes
 
@@ -229,7 +232,7 @@ class OVRPEvaluation(Evaluation):
 
         # check if not all nodes have been visited 
         independent_values = set(route)
-        if len(independent_values) != self.problem_size:
+        if len(independent_values) != problem_size:
             return None
 
         return route

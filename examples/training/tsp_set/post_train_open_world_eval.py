@@ -9,6 +9,7 @@ import math
 import multiprocessing as mp
 import pickle
 import random
+import time
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -196,7 +197,29 @@ def _function_key(function) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _hidden_function_scores(function, instances, *, seed: int, round_id: int):
+def select_top_train(functions, top_k=10):
+    """Rank functions by scalar/mean training gap before hidden evaluation."""
+    scored = []
+    for function in functions:
+        score = getattr(function, "score", None)
+        if score is None:
+            continue
+        values = np.asarray(score, dtype=float).ravel()
+        values = values[np.isfinite(values)]
+        if len(values):
+            scored.append((float(np.mean(values)), function))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [function for _score, function in scored[: int(top_k)]]
+
+
+def _hidden_function_scores(
+    function,
+    instances,
+    *,
+    seed: int,
+    round_id: int,
+    instance_id_offset: int = 0,
+):
     """Evaluate one function reproducibly without exposing hidden instances to training."""
     heuristic = function_to_callable(function)
     function_key = _function_key(function)
@@ -204,7 +227,8 @@ def _hidden_function_scores(function, instances, *, seed: int, round_id: int):
     numpy_state = np.random.get_state()
     python_state = random.getstate()
     try:
-        for instance_id, instance in enumerate(instances):
+        for local_instance_id, instance in enumerate(instances):
+            instance_id = instance_id_offset + local_instance_id
             seed_material = f"{seed}:{round_id}:{instance_id}:{function_key}".encode("utf-8")
             eval_seed = int.from_bytes(hashlib.sha256(seed_material).digest()[:4], "big")
             np.random.seed(eval_seed)
@@ -219,7 +243,15 @@ def _hidden_function_scores(function, instances, *, seed: int, round_id: int):
     return np.asarray(scores, dtype=float)
 
 
-def _hidden_function_scores_worker(queue, name, source, instances, seed, round_id):
+def _hidden_function_scores_worker(
+    queue,
+    name,
+    source,
+    instances,
+    seed,
+    round_id,
+    instance_id_offset=0,
+):
     try:
         function = _HiddenEvalFunction(name, source)
         scores = _hidden_function_scores(
@@ -227,6 +259,7 @@ def _hidden_function_scores_worker(queue, name, source, instances, seed, round_i
             instances,
             seed=seed,
             round_id=round_id,
+            instance_id_offset=instance_id_offset,
         )
         if scores is None:
             queue.put(("invalid", None))
@@ -243,6 +276,7 @@ def _hidden_function_scores_with_timeout(
     seed: int,
     round_id: int,
     timeout_seconds: float | None,
+    instance_workers: int = 1,
 ):
     if timeout_seconds is None or timeout_seconds <= 0:
         return _hidden_function_scores(
@@ -253,6 +287,54 @@ def _hidden_function_scores_with_timeout(
         )
 
     ctx = mp.get_context("spawn")
+    instance_workers = min(max(1, int(instance_workers)), len(instances))
+    if instance_workers > 1:
+        boundaries = np.linspace(0, len(instances), instance_workers + 1, dtype=int)
+        queues = []
+        processes = []
+        for start, stop in zip(boundaries[:-1], boundaries[1:]):
+            queue = ctx.Queue(maxsize=1)
+            process = ctx.Process(
+                target=_hidden_function_scores_worker,
+                args=(
+                    queue,
+                    function.name,
+                    str(function),
+                    instances[int(start):int(stop)],
+                    seed,
+                    round_id,
+                    int(start),
+                ),
+            )
+            queue_info = (queue, process)
+            queues.append(queue_info)
+            processes.append(process)
+            process.start()
+        deadline = time.monotonic() + float(timeout_seconds)
+        for process in processes:
+            process.join(max(0.0, deadline - time.monotonic()))
+        if any(process.is_alive() for process in processes):
+            for process in processes:
+                if process.is_alive():
+                    process.terminate()
+                process.join()
+            for queue, _process in queues:
+                queue.cancel_join_thread()
+                queue.close()
+            return None
+        score_chunks = []
+        for queue, _process in queues:
+            if queue.empty():
+                status, payload = "invalid", None
+            else:
+                status, payload = queue.get()
+            queue.cancel_join_thread()
+            queue.close()
+            if status != "ok":
+                return None
+            score_chunks.append(np.asarray(payload, dtype=float))
+        return np.concatenate(score_chunks)
+
     queue = ctx.Queue(maxsize=1)
     process = ctx.Process(
         target=_hidden_function_scores_worker,
@@ -517,6 +599,24 @@ def _utility_stats(scores, baseline_scores=None):
     return stats
 
 
+def _raw_objectives(gap_scores, reference_objectives):
+    gaps = np.asarray(gap_scores, dtype=float)
+    references = np.asarray(reference_objectives, dtype=float)
+    return references * (1.0 - gaps)
+
+
+def _raw_stats(gap_scores, reference_objectives):
+    objectives = _raw_objectives(gap_scores, reference_objectives)
+    references = np.asarray(reference_objectives, dtype=float)
+    return {
+        "raw_objective_mean": float(np.mean(objectives)),
+        "raw_objective_min": float(np.min(objectives)),
+        "raw_objective_max": float(np.max(objectives)),
+        "raw_objective_std": float(np.std(objectives)),
+        "reference_objective_mean": float(np.mean(references)),
+    }
+
+
 class _HiddenEvalFunction:
     def __init__(self, name, source):
         self.name = name
@@ -536,6 +636,17 @@ def _evaluate_hidden_round(task):
             function_timeout_seconds,
         ) = task
         speed_probe_timeout_seconds = None
+        instance_workers = 1
+    elif len(task) == 6:
+        (
+            hidden_round,
+            portfolio_specs,
+            seed,
+            city_sizes,
+            function_timeout_seconds,
+            speed_probe_timeout_seconds,
+        ) = task
+        instance_workers = 1
     else:
         (
             hidden_round,
@@ -544,6 +655,7 @@ def _evaluate_hidden_round(task):
             city_sizes,
             function_timeout_seconds,
             speed_probe_timeout_seconds,
+            instance_workers,
         ) = task
     round_id = int(hidden_round["round_id"])
     portfolio = [
@@ -571,6 +683,7 @@ def _evaluate_hidden_round(task):
                     seed=seed,
                     round_id=round_id,
                     timeout_seconds=speed_probe_timeout_seconds,
+                    instance_workers=1,
                 )
                 if probe_scores is None:
                     return None
@@ -585,6 +698,7 @@ def _evaluate_hidden_round(task):
                 seed=seed,
                 round_id=round_id,
                 timeout_seconds=function_timeout_seconds,
+                instance_workers=instance_workers,
             )
         except Exception:
             scores = None
@@ -598,15 +712,18 @@ def _evaluate_hidden_round(task):
             evaluated_rows = list(executor.map(evaluate_function, portfolio))
     else:
         evaluated_rows = [evaluate_function(function) for function in portfolio]
-    valid_rows = [scores for scores in evaluated_rows if scores is not None]
-    if not valid_rows:
+    valid_top10_rows = [scores for scores in evaluated_rows[:10] if scores is not None]
+    if not valid_top10_rows:
         raise RuntimeError(f"No valid portfolio functions on hidden round {round_id}.")
 
-    best_scores = np.max(np.vstack(valid_rows), axis=0)
+    top1_scores = evaluated_rows[0]
+    top10_scores = np.max(np.vstack(valid_top10_rows), axis=0)
+    best_scores = top10_scores
     baseline_scores = np.asarray(
         [baseline_score_on_instance(instance) for instance in instances],
         dtype=float,
     )
+    reference_objectives = np.asarray([float(instance[2]) for instance in instances])
     regime = hidden_round["regime"]
     round_row = {
         "round_id": round_id,
@@ -614,8 +731,20 @@ def _evaluate_hidden_round(task):
         "hidden_instances": len(instances),
         "city_sizes": city_sizes,
         "portfolio_functions": len(portfolio),
-        "valid_portfolio_functions": len(valid_rows),
+        "valid_portfolio_functions": len(valid_top10_rows),
         **_utility_stats(best_scores, baseline_scores),
+        **_raw_stats(best_scores, reference_objectives),
+        "top1_gap_mean": (
+            float(np.mean(top1_scores)) if top1_scores is not None else None
+        ),
+        "top1_raw_mean": (
+            float(np.mean(_raw_objectives(top1_scores, reference_objectives)))
+            if top1_scores is not None else None
+        ),
+        "top10_gap_mean": float(np.mean(top10_scores)),
+        "top10_raw_mean": float(
+            np.mean(_raw_objectives(top10_scores, reference_objectives))
+        ),
     }
     size_rows = []
     for size in city_sizes:
@@ -627,9 +756,63 @@ def _evaluate_hidden_round(task):
                 "n_cities": size,
                 "hidden_instances": int(np.sum(mask)),
                 **_utility_stats(best_scores[mask], baseline_scores[mask]),
+                **_raw_stats(best_scores[mask], reference_objectives[mask]),
+                "top1_gap_mean": (
+                    float(np.mean(top1_scores[mask]))
+                    if top1_scores is not None else None
+                ),
+                "top1_raw_mean": (
+                    float(np.mean(_raw_objectives(
+                        top1_scores[mask], reference_objectives[mask]
+                    )))
+                    if top1_scores is not None else None
+                ),
+                "top10_gap_mean": float(np.mean(top10_scores[mask])),
+                "top10_raw_mean": float(np.mean(_raw_objectives(
+                    top10_scores[mask], reference_objectives[mask]
+                ))),
             }
         )
-    return round_row, size_rows, best_scores.tolist(), baseline_scores.tolist(), instance_sizes.tolist()
+    raw_round = {
+        "round_id": round_id,
+        "regime": regime,
+        "instance_sizes": instance_sizes.tolist(),
+        "functions": [
+            {
+                "index": index,
+                "name": function.name,
+                "function_sha256": _function_key(function),
+                "valid": scores is not None,
+                "scores": scores.tolist() if scores is not None else None,
+                "gap_scores": scores.tolist() if scores is not None else None,
+                "raw_objectives": (
+                    _raw_objectives(scores, reference_objectives).tolist()
+                    if scores is not None else None
+                ),
+            }
+            for index, (function, scores) in enumerate(zip(portfolio, evaluated_rows))
+        ],
+        "top1_gap_scores": top1_scores.tolist() if top1_scores is not None else None,
+        "top1_raw_objectives": (
+            _raw_objectives(top1_scores, reference_objectives).tolist()
+            if top1_scores is not None else None
+        ),
+        "top10_gap_scores": top10_scores.tolist(),
+        "top10_raw_objectives": _raw_objectives(
+            top10_scores, reference_objectives
+        ).tolist(),
+        "oracle_scores": top10_scores.tolist(),
+        "baseline_scores": baseline_scores.tolist(),
+        "reference_objectives": reference_objectives.tolist(),
+    }
+    return (
+        round_row,
+        size_rows,
+        best_scores.tolist(),
+        baseline_scores.tolist(),
+        instance_sizes.tolist(),
+        raw_round,
+    )
 
 
 def evaluate_hidden_portfolio_utility(
@@ -639,6 +822,7 @@ def evaluate_hidden_portfolio_utility(
     round_workers=1,
     function_timeout_seconds: float | None = None,
     speed_probe_timeout_seconds: float | None = None,
+    instance_workers: int = 1,
 ):
     """Evaluate final portfolios on held-out H_t without exposing H_t during training."""
     seed = int(hidden_dataset["seed"])
@@ -664,6 +848,7 @@ def evaluate_hidden_portfolio_utility(
                 city_sizes,
                 function_timeout_seconds,
                 speed_probe_timeout_seconds,
+                instance_workers,
             )
         )
 
@@ -679,13 +864,15 @@ def evaluate_hidden_portfolio_utility(
     all_sizes = []
     all_regimes = []
     all_baseline_scores = []
-    for round_row, size_rows, best_scores, baseline_scores, instance_sizes in results:
+    raw_rounds = []
+    for round_row, size_rows, best_scores, baseline_scores, instance_sizes, raw_round in results:
         per_round.append(round_row)
         per_round_size.extend(size_rows)
         all_scores.extend(best_scores)
         all_baseline_scores.extend(baseline_scores)
         all_sizes.extend(instance_sizes)
         all_regimes.extend([round_row["regime"]] * len(best_scores))
+        raw_rounds.append(raw_round)
 
     all_scores_array = np.asarray(all_scores, dtype=float)
     all_baseline_scores_array = np.asarray(all_baseline_scores, dtype=float)
@@ -733,6 +920,7 @@ def evaluate_hidden_portfolio_utility(
             "seed": seed,
             "schedule": hidden_dataset["schedule"],
         },
+        "raw_rounds": raw_rounds,
     }
     return per_round, per_round_size, per_size, summary
 
@@ -747,19 +935,28 @@ def save_hidden_utility_post_eval(
     round_workers: int = 1,
     function_timeout_seconds: float | None = None,
     speed_probe_timeout_seconds: float | None = None,
+    instance_workers: int = 1,
     output_prefix: str = "post_eval_hidden_utility",
 ):
     log_dir = Path(log_dir)
     hidden_dataset_path = Path(hidden_dataset_path)
     dataset = load_hidden_tsp_dataset(hidden_dataset_path)
-    _, per_round_size, _, _ = evaluate_hidden_portfolio_utility(
+    _, per_round_size, _, summary = evaluate_hidden_portfolio_utility(
         portfolios_by_round,
         dataset,
         round_workers=round_workers,
         function_timeout_seconds=function_timeout_seconds,
         speed_probe_timeout_seconds=speed_probe_timeout_seconds,
+        instance_workers=instance_workers,
     )
     train_regimes = {"uniform", "cluster", "bezier", "grid_holes", "mixed_id"}
+    report_metrics = (
+        "top1_gap_mean",
+        "top1_raw_mean",
+        "top10_gap_mean",
+        "top10_raw_mean",
+        "reference_objective_mean",
+    )
     rows = []
     for size in sorted({int(row["n_cities"]) for row in per_round_size}):
         output_row = {"n_cities": size}
@@ -770,13 +967,18 @@ def save_hidden_utility_post_eval(
                 and ((row["regime"] in train_regimes) == is_id)
             ]
             count = sum(int(row["hidden_instances"]) for row in selected)
-            output_row[f"{label}_utility_mean"] = (
-                sum(
-                    float(row["hidden_utility_mean"]) * int(row["hidden_instances"])
-                    for row in selected
-                ) / count
-                if count else None
-            )
+            for metric in report_metrics:
+                metric_rows = [row for row in selected if row.get(metric) is not None]
+                metric_count = sum(int(row["hidden_instances"]) for row in metric_rows)
+                output_row[f"{label}_{metric}"] = (
+                    sum(
+                        float(row[metric]) * int(row["hidden_instances"])
+                        for row in metric_rows
+                    ) / metric_count
+                    if metric_count else None
+                )
+            # Backward-compatible alias: utility is the best-of-top-10 gap.
+            output_row[f"{label}_utility_mean"] = output_row[f"{label}_top10_gap_mean"]
         rows.append(output_row)
 
     output_path = log_dir / f"{output_prefix}.csv"
@@ -787,31 +989,61 @@ def save_hidden_utility_post_eval(
                 size = int(old_row["n_cities"])
                 target = merged.setdefault(
                     size,
-                    {"n_cities": size, "id_utility_mean": None, "ood_utility_mean": None},
+                    {"n_cities": size},
                 )
-                for field in ("id_utility_mean", "ood_utility_mean"):
+                fields = [
+                    f"{label}_{metric}"
+                    for label in ("id", "ood")
+                    for metric in report_metrics
+                ] + ["id_utility_mean", "ood_utility_mean"]
+                for field in fields:
                     if target.get(field) is None and old_row.get(field):
                         target[field] = float(old_row[field])
     rows = [merged[size] for size in sorted(merged)]
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["n_cities", "id_utility_mean", "ood_utility_mean"],
+            fieldnames=["n_cities"] + [
+                f"{label}_{metric}"
+                for label in ("id", "ood")
+                for metric in report_metrics
+            ] + ["id_utility_mean", "ood_utility_mean"],
         )
         writer.writeheader()
         writer.writerows(rows)
+
+    raw_path = log_dir / f"{output_prefix}_raw_{hidden_dataset_path.stem}.json"
+    raw_payload = {
+        "format": "hidden-portfolio-objectives-v2",
+        "task": "tsp",
+        "method": method_name,
+        "portfolio_protocol": portfolio_protocol,
+        "hidden_dataset": str(hidden_dataset_path),
+        "hidden_dataset_seed": int(dataset["seed"]),
+        "rounds": summary.pop("raw_rounds"),
+    }
+    raw_path.write_text(json.dumps(raw_payload, indent=2), encoding="utf-8")
     return rows, output_path
 
 
 def print_hidden_utility_post_eval(method_name, rows, output_path):
-    print(f"\nPost-train hidden utility by size: {method_name}")
+    print(f"\nPost-train hidden raw objective and gap by size: {method_name}")
     for row in rows:
-        id_mean = row["id_utility_mean"]
-        ood_mean = row["ood_utility_mean"]
-        id_text = f"{id_mean:.6f}" if id_mean is not None else "n/a"
-        ood_text = f"{ood_mean:.6f}" if ood_mean is not None else "n/a"
-        print(f"n={row['n_cities']} id={id_text} ood={ood_text}")
-    print(f"hidden utility saved to {output_path}")
+        def metric_text(label):
+            values = [row.get(f"{label}_{metric}") for metric in (
+                "top1_raw_mean", "top1_gap_mean", "top10_raw_mean", "top10_gap_mean"
+            )]
+            if any(value is None for value in values):
+                return "n/a"
+            return (
+                f"top1(raw={values[0]:.6f}, gap={values[1]:+.6f}) "
+                f"top10(raw={values[2]:.6f}, gap={values[3]:+.6f})"
+            )
+        print(
+            f"n={row['n_cities']} id=[{metric_text('id')}] "
+            f"ood=[{metric_text('ood')}]"
+        )
+    print(f"hidden report saved to {output_path}")
 
 
 def evaluate_function_set(functions, stream_config=None):

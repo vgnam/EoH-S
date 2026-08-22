@@ -8,9 +8,9 @@
   temperature: 0.9
 
 task:
-  # One fixed training distribution, matching the TSP-ACO protocol.
+  # One fixed coordinate family with mixed sizes, matching the TSP-ACO protocol.
   datasets:
-    - datasets/cvrp/dataset_cvrp_train_fixed30_uniform_32.pkl
+    - datasets/cvrp/dataset_cvrp_train_mixed_sizes_uniform_32.pkl
   max_instances: 32
   aco:
     n_ants: 8

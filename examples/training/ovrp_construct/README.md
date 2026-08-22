@@ -11,8 +11,9 @@ gap vs a nearest-neighbor baseline: `(baseline - cost) / baseline` (0 = NN,
 positive = better than NN).
 
 Train on the IID train datasets — 4 coordinate families (uniform, cluster,
-bezier, grid_holes) × 32 instances each = 128 instances, fixed 30 customers
-(train_datasets/family_<family>.pkl). Post-evaluate on the ID test datasets
+bezier, grid_holes) × 32 instances each = 128 instances, using a near-balanced
+mixture of 20, 50, and 100 customers
+(train_datasets/family_<family>_mixed_sizes.pkl). Post-evaluate on the ID test datasets
 (test_datasets/size_20/50/100.pkl) and the OOD datasets
 (ood_test_datasets/mixture/size_20/50/100.pkl), 128 instances per size each
 (384 total per split).
@@ -20,9 +21,13 @@ bezier, grid_holes) × 32 instances each = 128 instances, fixed 30 customers
 ID instances are balanced across the same 4 train families (32 per family per
 size); OOD instances are gaussian mixtures with random Dirichlet weights
 (mixed rings/spiral/gaussian-blob/line structures), so they are out-of-family
-relative to training. Regenerate with:
+relative to training. Regenerate the mixed-size train data with:
 
-    py -3 scripts/generate_ovrp_vrptw_datasets.py ovrp
+    py -3.10 scripts/generate_mixed_size_routing_train.py --tasks ovrp
+
+Regenerate the fixed-size hidden ID/OOD data separately with:
+
+    py -3.10 scripts/generate_ovrp_vrptw_datasets.py ovrp
 
 Post-eval uses the whole population for EoH/EoHS and the top-10 train-score
 individuals for MCTS_AHD. OW-CAHD synthesizes new coordinate regimes and

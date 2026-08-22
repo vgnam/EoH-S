@@ -19,6 +19,7 @@ from post_train_open_world_eval import (
     load_hidden_tsp_dataset,
     print_hidden_utility_post_eval,
     save_hidden_utility_post_eval,
+    select_top_train,
 )
 
 def load_config(name):
@@ -86,7 +87,7 @@ def main():
             json.dumps(token_usage, indent=2),
             encoding="utf-8",
         )
-        final_population = method._population.population
+        final_population = select_top_train(method._population.population, 10)
         for hidden_dataset_path in hidden_dataset_paths(hidden_test_cfg):
             output_prefix = hidden_output_prefix(hidden_dataset_path)
             try:

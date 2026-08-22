@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
 sys.path.insert(0, str(REPO_ROOT / "code"))
@@ -47,8 +49,17 @@ def hidden_output_prefix(path):
 
 
 def select_top_k(population, k=10):
-    scored = [func for func in population if getattr(func, "score", None) is not None]
-    return sorted(scored, key=lambda func: func.score, reverse=True)[:k]
+    scored = []
+    for function in population:
+        score = getattr(function, "score", None)
+        if score is None:
+            continue
+        values = np.asarray(score, dtype=float).ravel()
+        values = values[np.isfinite(values)]
+        if len(values):
+            scored.append((float(np.mean(values)), function))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [function for _score, function in scored[:k]]
 
 
 def main():

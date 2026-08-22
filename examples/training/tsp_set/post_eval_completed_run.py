@@ -4,6 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
+
 from post_train_open_world_eval import (
     load_hidden_tsp_dataset,
     print_hidden_utility_post_eval,
@@ -26,6 +28,25 @@ def load_rows(path):
     return [LoggedFunction(row) for row in json.loads(path.read_text(encoding="utf-8"))]
 
 
+def select_top_train(functions, top_k=10):
+    def scalar_score(function):
+        if function.score is None:
+            return None
+        values = np.asarray(function.score, dtype=float).ravel()
+        values = values[np.isfinite(values)]
+        return float(np.mean(values)) if len(values) else None
+
+    scored = [
+        (score, function)
+        for function in functions
+        if (score := scalar_score(function)) is not None
+    ]
+    return [
+        function
+        for _score, function in sorted(scored, key=lambda item: item[0], reverse=True)
+    ][: int(top_k)]
+
+
 def count_eohs_samples(log_dir):
     return sum(
         len(json.loads(path.read_text(encoding="utf-8")))
@@ -45,12 +66,7 @@ def load_completed_portfolios(log_dir, method, hidden_dataset):
         if not population_paths:
             raise FileNotFoundError(f"No final {method} population found.")
         final_population = load_rows(population_paths[-1])
-        if method == "mcts_ahd":
-            final_population = sorted(
-                (function for function in final_population if function.score is not None),
-                key=lambda function: function.score,
-                reverse=True,
-            )[:10]
+        final_population = select_top_train(final_population, 10)
         return (
             {round_id: final_population for round_id in round_ids},
             f"fixed final {'MCTS_AHD' if method == 'mcts_ahd' else 'EoH'} population",
@@ -58,9 +74,13 @@ def load_completed_portfolios(log_dir, method, hidden_dataset):
 
     if method == "eohs":
         samples = count_eohs_samples(log_dir)
-        if samples < 500:
-            raise ValueError(f"EOHS run is incomplete: found only {samples}/500 samples.")
         final_path = log_dir / "post_eval_open_world_functions.json"
+        completion_metadata = (
+            (log_dir / "run_config.json").exists()
+            and (log_dir / "token_usage.json").exists()
+        )
+        if samples < 500 and not final_path.exists() and not completion_metadata:
+            raise ValueError(f"EOHS run is incomplete: found only {samples}/500 samples.")
         if not final_path.exists():
             population_paths = sorted(
                 (log_dir / "population").glob("pop_*.json"),
@@ -69,7 +89,7 @@ def load_completed_portfolios(log_dir, method, hidden_dataset):
             if not population_paths:
                 raise FileNotFoundError("No final EOHS population found.")
             final_path = population_paths[-1]
-        final_population = load_rows(final_path)
+        final_population = select_top_train(load_rows(final_path), 10)
         return (
             {round_id: final_population for round_id in round_ids},
             "fixed final EOHS population",
@@ -105,6 +125,8 @@ def main():
     parser.add_argument("--function-timeout-seconds", type=float, default=20.0)
     parser.add_argument("--speed-probe-timeout-seconds", type=float, default=3.0)
     parser.add_argument("--output-prefix", default="post_eval_hidden_utility")
+    parser.add_argument("--portfolio-size", type=int, default=None)
+    parser.add_argument("--instance-workers", type=int, default=1)
     args = parser.parse_args()
 
     hidden_dataset = load_hidden_tsp_dataset(args.hidden_dataset)
@@ -113,6 +135,14 @@ def main():
         args.method,
         hidden_dataset,
     )
+    if args.portfolio_size is not None:
+        if args.portfolio_size <= 0:
+            parser.error("--portfolio-size must be positive.")
+        portfolios = {
+            round_id: portfolio[: args.portfolio_size]
+            for round_id, portfolio in portfolios.items()
+        }
+        protocol = f"{protocol}; first {args.portfolio_size} function(s)"
     utility_by_size, output_path = save_hidden_utility_post_eval(
         args.log_dir,
         args.method,
@@ -122,6 +152,7 @@ def main():
         round_workers=1 if args.function_timeout_seconds > 0 else 6,
         function_timeout_seconds=args.function_timeout_seconds,
         speed_probe_timeout_seconds=args.speed_probe_timeout_seconds,
+        instance_workers=args.instance_workers,
         output_prefix=args.output_prefix,
     )
     print_hidden_utility_post_eval(args.method, utility_by_size, output_path)

@@ -17,7 +17,11 @@ from llm4ad.method.eohs import EoHS, EoHSProfiler
 from llm4ad.task.optimization.cvrp_construct_set import CVRPSEvaluation
 from llm4ad.tools.llm.llm_api_openai import OpenAIAPI
 from cvrp_common import load_hidden_cvrp_dataset, resolve_repo_path
-from post_train_hidden_eval import print_hidden_utility_post_eval, save_hidden_utility_post_eval
+from post_train_hidden_eval import (
+    print_hidden_utility_post_eval,
+    save_hidden_utility_post_eval,
+    select_top_train,
+)
 
 
 def load_config():
@@ -82,7 +86,7 @@ def main():
     log_dir = Path(profiler._log_dir)
     (log_dir / "run_config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     (log_dir / "token_usage.json").write_text(json.dumps(token_usage, indent=2), encoding="utf-8")
-    final_population = method._population.population
+    final_population = select_top_train(method._population.population, 10)
     final_population_path = save_final_population(log_dir, final_population)
     print(f"Final EOHS population saved to {final_population_path}")
     for hidden_dataset_path in hidden_dataset_paths(hidden_test_cfg):

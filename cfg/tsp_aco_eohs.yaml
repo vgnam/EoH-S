@@ -8,10 +8,10 @@
   temperature: 0.9
 
 task:
-  # One fixed training distribution, as requested. Change this one path to
+  # One fixed coordinate family with mixed sizes. Change this one path to
   # cluster, bezier, or grid_holes for a separate matched run.
   datasets:
-    - datasets/tsp/dataset_tsp_train_fixed30_uniform_32.pkl
+    - datasets/tsp/dataset_tsp_train_mixed_sizes_uniform_32.pkl
   max_instances: 32
   aco:
     n_ants: 8

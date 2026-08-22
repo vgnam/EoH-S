@@ -9,7 +9,7 @@
   max_retries: 5
 task:
   timeout_seconds: 120
-  train_datasets: [code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_uniform.pkl, code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_cluster.pkl, code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_bezier.pkl, code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_grid_holes.pkl]
+  train_datasets: [code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_uniform_mixed_sizes.pkl, code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_cluster_mixed_sizes.pkl, code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_bezier_mixed_sizes.pkl, code/llm4ad/task/optimization/ovrp_construct/train_datasets/family_grid_holes_mixed_sizes.pkl]
   train_instances_per_dataset: 32
   return_list: true
 hidden_test:
